@@ -31,12 +31,13 @@ async function listFiles(subdir: string): Promise<MigrationFile[]> {
 
 export async function migrate(db: Db, opts: { includeSupabase?: boolean; log?: (m: string) => void } = {}) {
   const log = opts.log ?? (() => undefined);
-  await db.query(`create table if not exists public.schema_migrations (
+  await db.query(`create schema if not exists app;
+  create table if not exists app.schema_migrations (
     id text primary key, checksum text not null, applied_at timestamptz not null default now())`);
 
   const files = [...(await listFiles('migrations')), ...(opts.includeSupabase ? await listFiles('supabase') : [])];
   const applied = new Map(
-    (await db.query<{ id: string; checksum: string }>('select id, checksum from public.schema_migrations')).rows.map(
+    (await db.query<{ id: string; checksum: string }>('select id, checksum from app.schema_migrations')).rows.map(
       (r) => [r.id, r.checksum],
     ),
   );
@@ -52,7 +53,7 @@ export async function migrate(db: Db, opts: { includeSupabase?: boolean; log?: (
     try {
       await client.query('begin');
       await client.query(f.sql);
-      await client.query('insert into public.schema_migrations (id, checksum) values ($1, $2)', [f.id, f.checksum]);
+      await client.query('insert into app.schema_migrations (id, checksum) values ($1, $2)', [f.id, f.checksum]);
       await client.query('commit');
       ran.push(f.id);
       log(`applied ${f.id}`);

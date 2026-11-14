@@ -6,7 +6,7 @@ export const TEST_DB_URL = process.env.TEST_DATABASE_URL;
 
 export async function freshDb(): Promise<Db> {
   const db = createPool(TEST_DB_URL!);
-  await db.query('drop schema if exists app cascade; drop table if exists public.schema_migrations;');
+  await db.query('drop schema if exists app cascade;');
   await migrate(db);
   return db;
 }
