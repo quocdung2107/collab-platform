@@ -59,7 +59,7 @@ Kiểm thử:
 
 - F2-T1. X (không thuộc nhóm) gọi đọc hội thoại nhóm → `not_found`.
 - F2-T2. AD không thuộc nhóm gọi đọc hội thoại nhóm → `not_found`. AD tự thêm mình → dòng hệ thống xuất hiện trong hội thoại.
-- F2-T3. M1 bị gỡ khi đang mở hội thoại → client nhận `access.revoked`, hội thoại đóng.
+- F2-T3. M1 bị gỡ khi đang mở hội thoại → client nhận tín hiệu `access_changed` trên kênh `user:{id}` (AD-31), làm mới phiên và hội thoại đóng.
 - F2-T4. Thành viên mới thấy lịch sử hội thoại nhóm (mặc định MVP theo OD-16).
 
 ## F3. Event
@@ -293,7 +293,7 @@ Kiểm thử (mỗi mục là một phép thử âm tính; kết quả mong đ�
 
 - F14-T1. Mọi điểm cuối đọc: gọi bằng người không có quyền xem → `not_found`, thời gian phản hồi và thân lỗi không phân biệt được với đối tượng không tồn tại.
 - F14-T2. Thành viên tổ chức A gọi đối tượng của tổ chức B → `not_found`.
-- F14-T3. T1–T15 trong `PERMISSION_MODEL.md` §8: mỗi đường có một phép thử chứng minh bị chặn (T14 chỉ kiểm tín hiệu `access.revoked` được gửi).
+- F14-T3. T1–T15 trong `PERMISSION_MODEL.md` §8: mỗi đường có một phép thử chứng minh bị chặn (T14 chỉ kiểm tín hiệu `access_changed` được gửi, AD-31).
 - F14-T4. Tệp: địa chỉ tải hết hạn → không tải được; người không có `view(attachment)` xin địa chỉ → `not_found`.
 - F14-T5. Event `visibility = groups`: hồ sơ của M1 xem bởi X không liệt kê Assignment của M1 trong Event đó.
 - F14-T6. Nội dung thông báo đẩy không chứa nội dung tin nhắn hay lý do từ chối.

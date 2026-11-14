@@ -2,12 +2,14 @@ import { loadConfig } from './config.js';
 import { createPool } from './db/pool.js';
 import { buildApp } from './http/app.js';
 import { supabaseVerifier } from './http/auth.js';
+import { MemoryRealtime, supabaseRealtime } from './modules/realtime/publisher.js';
 
 const config = loadConfig();
 const db = createPool(config.databaseUrl);
 const app = await buildApp({
   db,
   verifyToken: supabaseVerifier(config.supabaseUrl),
+  realtime: config.realtimeDriver === 'supabase' ? supabaseRealtime : new MemoryRealtime(),
   webOrigins: config.webOrigins,
   logger: true,
 });

@@ -61,6 +61,7 @@ Nguồn phát là module trong `PRODUCT_MODEL.md`. Người nhận: xem ma trậ
 | `organization.created` | Tạo tổ chức | `name` |
 | `organization.updated` | Sửa thông tin/mặc định | `changes{field: {before, after}}` |
 | `member.invited` | Tạo liên kết mời | `invite_id`, `role`, `group_id?` |
+| `invite.revoked` | Thu hồi liên kết mời | `invite_id` |
 | `member.joined` | Nhận lời mời | `user_id`, `role`, `invite_id`, `group_id?` |
 | `member.removed` | Rời hoặc bị gỡ. Sự kiện con: `group.member_removed`, `assignment.cancelled` (`member_left`), `task.assigned` (`to_owner_id` rỗng), `event.owner_changed` | `user_id`, `by_self : bool` |
 | `member.role_changed` | Đổi vai trò tổ chức | `user_id`, `before`, `after` |

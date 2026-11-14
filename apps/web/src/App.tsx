@@ -1,10 +1,15 @@
 import type { MeResponse } from '@collab/shared';
 import type { Session } from '@supabase/supabase-js';
 import { useEffect, useMemo, useState } from 'react';
-import { api, ApiError } from './lib/api';
+import { api, errorText } from './lib/api';
 import { detectBrowser } from './lib/embeddedBrowser';
+import { go, pendingInvite, useRoute } from './lib/route';
 import { signInWithGoogle, signOut, supabase, supabaseConfigured } from './lib/supabase';
+import { GroupPage } from './pages/GroupPage';
+import { Home } from './pages/Home';
+import { InvitePage } from './pages/InvitePage';
 import { OpenInBrowser } from './pages/OpenInBrowser';
+import { OrgPage } from './pages/OrgPage';
 import { PushTest } from './pages/PushTest';
 
 export function App() {
@@ -12,6 +17,9 @@ export function App() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [me, setMe] = useState<MeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [meTick, setMeTick] = useState(0);
+  const route = useRoute();
+  const reloadMe = () => setMeTick((t) => t + 1);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -23,17 +31,32 @@ export function App() {
     if (!session) return setMe(null);
     api
       .me()
-      .then(setMe)
-      .catch((e: unknown) => setError(e instanceof ApiError ? `${e.body.code}: ${e.message}` : String(e)));
+      .then((m) => (setMe(m), setError(null)))
+      .catch((e: unknown) => setError(errorText(e)));
+  }, [session, meTick]);
+
+  // Mở lại liên kết mời đã giữ trước vòng đăng nhập OAuth.
+  useEffect(() => {
+    if (!session) return;
+    const token = pendingInvite.take();
+    if (token && route.name === 'home') go({ name: 'invite', token });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
-  if (window.location.hash === '#od17') {
+  if (route.name === 'od17') {
     return (
       <main>
         <PushTest />
       </main>
     );
   }
+
+  // Ứng dụng mở từ Màn hình chính không có thanh địa chỉ → cần liên kết tới trang thử OD-17 (bỏ khi xong thử nghiệm).
+  const od17Link = (
+    <a className="hint" href="#od17" onClick={() => setTimeout(() => window.location.reload(), 0)}>
+      Thử thông báo đẩy (OD-17)
+    </a>
+  );
 
   if (!supabaseConfigured) {
     return (
@@ -56,41 +79,51 @@ export function App() {
           <section className="card">
             <h1>Collab</h1>
             <p>Lịch phục vụ, việc cần làm và trò chuyện của hội thánh ở một nơi.</p>
-            <button className="button primary" onClick={() => signInWithGoogle()}>
+            {route.name === 'invite' && <p>Bạn được mời tham gia. Đăng nhập để tiếp tục.</p>}
+            <button
+              className="button primary"
+              onClick={() => {
+                if (route.name === 'invite') pendingInvite.save(route.token);
+                void signInWithGoogle();
+              }}
+            >
               Đăng nhập bằng Google
             </button>
           </section>
         )}
+        {od17Link}
       </main>
     );
   }
 
+  if (error && !me) {
+    return (
+      <main>
+        <section className="card">
+          <p className="error">{error}</p>
+          <button className="button" onClick={reloadMe}>
+            Thử lại
+          </button>
+          <button className="button" onClick={() => signOut()}>
+            Đăng xuất
+          </button>
+        </section>
+        {od17Link}
+      </main>
+    );
+  }
+  if (!me) return <main className="center">Đang tải hồ sơ…</main>;
+
   return (
     <main>
-      <section className="card">
-        {error && <p className="error">{error}</p>}
-        {me ? (
-          <>
-            <h1>Xin chào, {me.user.displayName}</h1>
-            {me.memberships.length === 0 ? (
-              <p>Bạn chưa thuộc tổ chức nào. Hãy mở liên kết mời do người quản lý gửi.</p>
-            ) : (
-              <ul>
-                {me.memberships.map((m) => (
-                  <li key={m.orgId}>
-                    {m.orgName} — {m.role}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        ) : (
-          !error && <p>Đang tải hồ sơ…</p>
-        )}
-        <button className="button" onClick={() => signOut()}>
-          Đăng xuất
-        </button>
-      </section>
+      {route.name === 'invite' && <InvitePage token={route.token} onJoined={reloadMe} />}
+      {route.name === 'org' && <OrgPage key={route.id} orgId={route.id} meId={me.user.id} onMembershipChanged={reloadMe} />}
+      {route.name === 'group' && <GroupPage key={route.id} groupId={route.id} meId={me.user.id} />}
+      {route.name === 'home' && <Home me={me} onChanged={reloadMe} />}
+      <button className="button small" onClick={() => signOut()}>
+        Đăng xuất
+      </button>
+      {od17Link}
     </main>
   );
 }

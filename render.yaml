@@ -1,0 +1,25 @@
+# Render Blueprint: API Node (apps/api) trên gói miễn phí.
+# Tạo bằng: Render Dashboard → New → Blueprint → chọn repo này. Xem docs/SETUP.md mục "Triển khai API lên Render".
+services:
+  - type: web
+    name: collab-api
+    runtime: node
+    plan: free
+    region: singapore # gần Supabase ap-south-1 (Mumbai) nhất trong các vùng của Render
+    branch: main
+    autoDeploy: true
+    buildCommand: npx -y pnpm@10.28.0 install --frozen-lockfile && npx -y pnpm@10.28.0 --filter @collab/api build
+    startCommand: node apps/api/dist/server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Chuỗi Session pooler từ Supabase (Connect → Session pooler), thêm ?sslmode=require&uselibpqcompat=true. Nhập tay, không commit.
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        value: https://jgdbeutyiwyrgjirakvn.supabase.co
+      - key: WEB_ORIGINS
+        value: https://quocdung2107.github.io,http://localhost:5173
+      - key: REALTIME_DRIVER
+        value: supabase
