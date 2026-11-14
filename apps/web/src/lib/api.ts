@@ -118,6 +118,10 @@ export const api = {
   createEvent: (orgId: string, body: NewEventBody) => request<CreatedEventDto>(`/v1/organizations/${orgId}/events`, json('POST', body, true)),
   event: (eventId: string) => request<EventDto>(`/v1/events/${eventId}`),
   updateEvent: (eventId: string, body: EventPatch & { expectedVersion: number }) => request<EventDto>(`/v1/events/${eventId}`, json('PATCH', body)),
+  rescheduleEvent: (eventId: string, body: { expectedVersion: number; startsAt: string; endsAt: string; reason?: string }) =>
+    request<{ event: EventDto; summary: RescheduleSummary }>(`/v1/events/${eventId}/reschedule`, json('POST', body)),
+  relocateEvent: (eventId: string, body: { expectedVersion: number; location: string | null }) => request<EventDto>(`/v1/events/${eventId}/relocate`, json('POST', body)),
+  cancelEvent: (eventId: string, body: { expectedVersion: number; reason?: string }) => request<EventDto>(`/v1/events/${eventId}/cancel`, json('POST', body)),
   deleteDraft: (eventId: string, expectedVersion: number) => request(`/v1/events/${eventId}`, json('DELETE', { expectedVersion })),
   publishEvent: (eventId: string, expectedVersion: number) =>
     request<{ event: EventDto; requestedCount: number }>(`/v1/events/${eventId}/publish`, json('POST', { expectedVersion })),
@@ -152,6 +156,13 @@ export const api = {
   setSubscription: (type: 'event' | 'task' | 'conversation', id: string, mode: SubscriptionMode | null) =>
     request<{ mode: SubscriptionMode | null }>(`/v1/subscriptions/${type}/${id}`, mode ? json('PUT', { mode }) : json('DELETE')),
 };
+
+export interface RescheduleSummary {
+  reconfirmCount: number;
+  notifiedCount: number;
+  tasksShifted: number;
+  tasksAbsoluteDue: number;
+}
 
 export interface EventPatch {
   title?: string;

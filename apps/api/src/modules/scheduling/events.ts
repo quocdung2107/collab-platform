@@ -1,6 +1,7 @@
 import type { AssignmentDto, CreatedEventDto, EventDto, EventSummaryDto, PositionDto, TemplateDefinition } from '@collab/shared';
 import type { Queryable } from '../../db/pool.js';
 import type { CommandCtx } from '../../http/command.js';
+import { revokeLostViewers } from './lifecycle.js';
 import { AppError } from '../../http/errors.js';
 import { normalizeText } from '../../lib/text.js';
 import { assertAllowed } from '../access/authorize.js';
@@ -374,7 +375,7 @@ export async function createEvent(ctx: CommandCtx, orgId: string, input: CreateE
   return { event: await eventDetail(ctx.tx, row, obj, actor), warnings };
 }
 
-async function loadForEdit(ctx: CommandCtx, eventId: string, expectedVersion: number) {
+export async function loadForEdit(ctx: CommandCtx, eventId: string, expectedVersion: number) {
   const v = await viewEvent(ctx.tx, ctx.user.id, eventId, true);
   assertAllowed(can(v.actor, 'event.edit', v.obj));
   if (v.row.version !== expectedVersion) {
@@ -392,6 +393,8 @@ export interface UpdateEventInput {
   endsAt?: string;
   groupIds?: string[];
   visibility?: 'org' | 'groups';
+  /** Báo cả người được xếp về thay đổi (NOTIFICATION_ENGINE §5, event.updated). */
+  notifyAssignees?: boolean;
 }
 
 export async function updateEvent(ctx: CommandCtx, eventId: string, input: UpdateEventInput) {
@@ -444,20 +447,22 @@ export async function updateEvent(ctx: CommandCtx, eventId: string, input: Updat
       await ctx.tx.query(`insert into app.event_groups (event_id, group_id, org_id) select $1, unnest($2::uuid[]), $3`, [eventId, groupIds, row.org_id]);
     }
   }
-  await emit(
+  const activityId = await emit(
     ctx,
     {
       orgId: row.org_id,
       verb: 'event.updated',
       object: { type: 'event', id: eventId },
       context: { eventId },
-      payload: { changes, notify_assignees: false },
+      payload: { changes, notify_assignees: Boolean(input.notifyAssignees) },
     },
     row.status === 'draft' ? [] : [topics.event(eventId)],
   );
-  // TODO(S9): đổi visibility/event_groups làm mất quyền xem → access_changed cho người bị ảnh hưởng (AD-31).
   const fresh = u.rows[0]!;
-  return eventDetail(ctx.tx, fresh, (await eventObjects(ctx.tx, [fresh])).get(eventId)!, actor);
+  const freshObj = (await eventObjects(ctx.tx, [fresh])).get(eventId)!;
+  // Đổi visibility/nhóm làm mất quyền xem → xoá Subscription + access_changed (AD-31, §6 quy tắc 4).
+  if (row.status !== 'draft' && (changes.visibility || changes.group_ids)) await revokeLostViewers(ctx, obj, freshObj, activityId);
+  return eventDetail(ctx.tx, fresh, freshObj, actor);
 }
 
 /** Xoá bản nháp: xoá cứng Event, Position, Assignment draft và ActivityEvent của riêng nó (DATA_MODEL §5). */

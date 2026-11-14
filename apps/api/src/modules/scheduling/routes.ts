@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { runCommand } from '../../http/command.js';
 import { idParam, parse } from '../../http/validate.js';
 import { cancelAssignment, replaceAssignment, respondAssignment } from './assignments.js';
+import { cancelEvent, relocateEvent, rescheduleEvent } from './lifecycle.js';
 import { changeOwners, createEvent, deleteDraft, getEvent, listEvents, publishEvent, updateEvent } from './events.js';
 import { cancelDraftAssignment, createAssignment, createPosition, removePosition, updatePosition } from './positions.js';
 import { archiveTemplate, createTemplate, listTemplates, templateFromEvent } from './templates.js';
@@ -36,7 +37,11 @@ const updateEventBody = z.object({
   endsAt: instant.optional(),
   groupIds: uuids.optional(),
   visibility: z.enum(['org', 'groups']).optional(),
+  notifyAssignees: z.boolean().optional(),
 });
+const rescheduleBody = z.object({ expectedVersion: z.number().int().positive(), startsAt: z.iso.datetime({ offset: true }), endsAt: z.iso.datetime({ offset: true }), reason: z.string().trim().max(500).optional() });
+const relocateBody = z.object({ expectedVersion: z.number().int().positive(), location: z.string().trim().max(300).nullable() });
+const cancelBody = z.object({ expectedVersion: z.number().int().positive(), reason: z.string().trim().max(500).optional() });
 const versionBody = z.object({ expectedVersion: version });
 const ownersBody = z.object({ expectedVersion: version, add: uuids.default([]), remove: uuids.default([]) });
 const positionFields = {
@@ -101,6 +106,15 @@ export async function schedulingRoutes(app: FastifyInstance) {
     runCommand(deps, req, reply, async (ctx) => ({
       body: await publishEvent(ctx, idParam(req.params.eventId), parse(versionBody, req.body).expectedVersion),
     })),
+  );
+  app.post<{ Params: P }>('/v1/events/:eventId/reschedule', (req, reply) =>
+    runCommand(deps, req, reply, async (ctx) => ({ body: await rescheduleEvent(ctx, idParam(req.params.eventId), parse(rescheduleBody, req.body)) })),
+  );
+  app.post<{ Params: P }>('/v1/events/:eventId/relocate', (req, reply) =>
+    runCommand(deps, req, reply, async (ctx) => ({ body: await relocateEvent(ctx, idParam(req.params.eventId), parse(relocateBody, req.body)) })),
+  );
+  app.post<{ Params: P }>('/v1/events/:eventId/cancel', (req, reply) =>
+    runCommand(deps, req, reply, async (ctx) => ({ body: await cancelEvent(ctx, idParam(req.params.eventId), parse(cancelBody, req.body)) })),
   );
   app.post<{ Params: P }>('/v1/events/:eventId/owners', (req, reply) =>
     runCommand(deps, req, reply, async (ctx) => ({ body: await changeOwners(ctx, idParam(req.params.eventId), parse(ownersBody, req.body)) })),
