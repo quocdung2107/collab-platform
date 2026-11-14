@@ -14,6 +14,7 @@ const STATUS: Record<ErrorCode, number> = {
   not_a_member: 422,
   read_only: 409,
   rate_limited: 429,
+  unavailable: 503,
 };
 
 export class AppError extends Error {

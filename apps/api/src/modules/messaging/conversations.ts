@@ -13,6 +13,8 @@ import { topics } from '../realtime/publisher.js';
 import { EVENT_COLS, eventObjects, type EventRow } from '../scheduling/access.js';
 import { TASK_COLS, taskObjects, type TaskRow } from '../tasks/access.js';
 import { cardsFor, onMessageDeleted, syncMessageRefs, type Ref } from '../links/links.js';
+import { attachToMessage, messageAttachments, type UploadRef } from '../files/attachments.js';
+import { fileStorage } from '../files/storage.js';
 import type { TaskObject } from '../access/can.js';
 
 /**
@@ -196,7 +198,7 @@ interface MessageRow {
   mentions: Array<{ userId: string; displayName: string }>;
 }
 
-const toMessage = (m: MessageRow): Omit<MessageDto, 'cards'> => ({
+const toMessage = (m: MessageRow): Omit<MessageDto, 'cards' | 'attachments'> => ({
   id: m.id,
   seq: Number(m.seq),
   kind: m.kind,
@@ -214,8 +216,9 @@ const toMessage = (m: MessageRow): Omit<MessageDto, 'cards'> => ({
 
 /** Gắn thẻ đối tượng theo quyền người xem (X2). Tin đã xoá: không thẻ references, vẫn có thẻ Task sinh từ tin. */
 async function withCards(db: Queryable, viewerId: string, rows: MessageRow[]): Promise<MessageDto[]> {
-  const cards = await cardsFor(db, viewerId, rows.filter((m) => m.kind === 'user').map((m) => m.id));
-  return rows.map((m) => ({ ...toMessage(m), cards: cards.get(m.id) ?? [] }));
+  const ids = rows.filter((m) => m.kind === 'user').map((m) => m.id);
+  const [cards, files] = await Promise.all([cardsFor(db, viewerId, ids), messageAttachments(db, ids)]);
+  return rows.map((m) => ({ ...toMessage(m), cards: cards.get(m.id) ?? [], attachments: files.get(m.id) ?? [] }));
 }
 
 async function messageById(db: Queryable, id: string, viewerId: string) {
@@ -286,6 +289,7 @@ export interface SendInput {
   replyToId?: string;
   mentionIds: string[];
   refs?: Ref[];
+  attachments?: UploadRef[];
 }
 
 /**
@@ -345,9 +349,10 @@ export async function sendMessage(ctx: CommandCtx, conversationId: string, input
       sender_id: ctx.user.id,
       mention_ids: mentionIds,
       reply_to_sender_id: replyToSenderId,
-      has_attachments: false,
+      has_attachments: (input.attachments?.length ?? 0) > 0,
     },
   });
+  if (input.attachments?.length) await attachToMessage(ctx, fileStorage(), conv.org_id, messageId, input.attachments);
   await syncMessageRefs(ctx, { orgId: conv.org_id, messageId, context: anchorContext(conv), causeId: activityId }, input.refs ?? [], body);
   await ctx.realtime.send(ctx.tx, topics.conversation(conversationId), 'conversation.message', {
     type: 'message',

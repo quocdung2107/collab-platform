@@ -1,5 +1,6 @@
 import type { Db, Tx } from '../../db/pool.js';
 import { appendSystemMessage, conversationOf } from '../messaging/conversations.js';
+import { scheduleChatPush, scheduleNotificationPush } from '../push/schedule.js';
 import type { RealtimePublisher } from '../realtime/publisher.js';
 import { topics } from '../realtime/publisher.js';
 import { facts } from './facts.js';
@@ -59,6 +60,7 @@ export async function processActivity(tx: Tx, rt: RealtimePublisher, a: Activity
     }
   }
 
+  await scheduleChatPush(tx, a);
   await projectSystemLines(tx, rt, a);
 }
 
@@ -113,11 +115,12 @@ async function upsert(tx: Tx, rt: RealtimePublisher, a: Activity, target: Target
   }
 
   let id: string;
+  let cls: NotificationClass = r.cls;
   let verb: 'notification.created' | 'notification.updated';
   if (existing) {
     id = existing.id;
     verb = 'notification.updated';
-    await tx.query(
+    const u = await tx.query<{ class: NotificationClass }>(
       `update app.notifications
           set class = case when $2 = 'action_required' then 'action_required' else class end,
               action_state = case when $3 then 'pending' when class = 'direct' and $2 = 'direct' then action_state else action_state end,
@@ -125,9 +128,10 @@ async function upsert(tx: Tx, rt: RealtimePublisher, a: Activity, target: Target
               reasons = (select array_agg(distinct x) from unnest(reasons || $4::text[]) x),
               read_at = case when $3 then null else read_at end,
               updated_at = now()
-        where id = $1`,
+        where id = $1 returning class`,
       [id, r.cls, r.needsAction, r.reasons],
     );
+    cls = u.rows[0]!.class;
   } else {
     verb = 'notification.created';
     const ins = await tx.query<{ id: string }>(
@@ -143,6 +147,7 @@ async function upsert(tx: Tx, rt: RealtimePublisher, a: Activity, target: Target
     [id, a.id, a.verb, obj.type, obj.id, r.needsAction],
   );
   await rt.send(tx, topics.user(r.userId), verb, { type: 'notification', id, verb });
+  await scheduleNotificationPush(tx, a, { id, userId: r.userId, cls });
 }
 
 async function projectSystemLines(tx: Tx, rt: RealtimePublisher, a: Activity) {

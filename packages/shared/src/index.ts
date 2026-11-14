@@ -7,3 +7,4 @@ export * from './notifications.js';
 export * from './workspace.js';
 export * from './tasks.js';
 export * from './context.js';
+export * from './history.js';
