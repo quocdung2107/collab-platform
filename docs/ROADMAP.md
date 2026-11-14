@@ -19,12 +19,12 @@ Cập nhật: 2026-11-14. Nguồn tiêu chí: `docs/spec/MVP_ACCEPTANCE_CRITERIA
 | S11a | Liên kết: Task từ tin nhắn, thẻ đối tượng, khối Liên quan, Link giữa hai đối tượng (F10) | #15 |
 | S11b | Tệp đính kèm trong tin, buổi, việc qua Storage; URL ký ngắn hạn (F9b, F14-T4) | PR S11b |
 | S12 | Đẩy thật (F11b): thiết bị gắn tài khoản, Web Push VAPID ở Backend, Preference, giờ yên lặng + tóm tắt, debounce, thử lại, đẩy chat thu gọn theo hội thoại; trang Cài đặt (F11-T3, T6..T11; F14-T6; IN-43..47) | PR S12 |
+| S13 | Lịch sử Event/Task (F13: ai, khi nào, trước → sau, hệ quả lồng, che lý do từ chối), quét not_found mọi điểm cuối đọc (F14-T1, T2), đẩy F6-T2/F9-T4/F14-T6, bỏ trang thử OD-17; kịch bản E2E và danh sách tiêu chí còn thiếu trong `docs/MVP_VERIFICATION.md` | PR S13 |
 
 ## Thứ tự còn lại
 
 | Lát | Nội dung | Tiêu chí | Phụ thuộc | Ghi chú |
 | --- | --- | --- | --- | --- |
-| S13 | **Lịch sử + rà soát (F13, F14)**: trang Lịch sử, quét T1–T15, 4 kịch bản E2E trên thiết bị thật | F13-T1..T5; F14-T1,T3,T5; E2E-1..4 | tất cả | Dọn dữ liệu/hàm thử nghiệm |
 
 ## Vì sao hội thoại đi trước Event
 - F3 yêu cầu "Conversation của Event được tạo" khi publish; F10 cần cả hai. Làm hội thoại trước thì Event dùng lại được, không phải để `TODO`.
