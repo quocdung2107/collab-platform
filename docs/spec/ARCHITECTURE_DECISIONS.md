@@ -1,6 +1,6 @@
 # ARCHITECTURE_DECISIONS
 
-Phiên bản 0.2 · 2026-11-13 (0.2: chủ sản phẩm chốt OD-01, OD-08, OD-13; thêm AD-25..AD-30, OD-17..OD-19)
+Phiên bản 0.2 · 2026-11-13 (0.2: chủ sản phẩm chốt OD-01, OD-08, OD-13; thêm AD-25..AD-30, OD-17..OD-19) · 0.3 (2026-11-14): AD-31 chốt OD-19 sau thử nghiệm
 
 Gồm bốn phần: quyết định đã chốt (AD), quyết định mở (OD), kết quả kiểm tra chéo, và đánh giá mức sẵn sàng.
 
@@ -40,6 +40,7 @@ Mỗi mục: quyết định · lý do · phương án đã loại.
 | AD-28 | Logic nghiệp vụ và phân quyền quan trọng nằm ở Backend Node: một hàm `can(user, action, object)` là nguồn sự thật. RLS là lớp phòng thủ thứ hai (defense-in-depth), không phải nơi duy nhất thực thi quy tắc. Mọi lệnh ghi nghiệp vụ đi qua API; máy khách không ghi thẳng vào bảng nghiệp vụ | Theo nguyên tắc của chủ sản phẩm: không phụ thuộc hoàn toàn vào Supabase. Quy tắc phức tạp (X1–X11, ma trận quyền) khó và dễ sai khi chỉ viết bằng chính sách RLS | Chỉ dùng RLS + gọi trực tiếp từ máy khách: ít mã nhất nhưng đưa logic vào SQL, khó kiểm thử và khoá nhà cung cấp |
 | AD-29 | PostgreSQL chuẩn; migration là tệp SQL có phiên bản trong kho mã, chạy có kiểm soát. Giao diện tới Realtime, Storage, Auth đặt sau các adapter của Backend. Đối tượng đặc thù Supabase (chính sách trên `realtime.messages`, `storage.objects`) được cô lập trong thư mục migration riêng và liệt kê | Theo nguyên tắc của chủ sản phẩm: tránh phụ thuộc sâu vào nhà cung cấp | Dùng bảng điều khiển để sửa schema; để mã nghiệp vụ gọi SDK nhà cung cấp rải rác |
 | AD-30 | Koinonia giữ Electron + React + TypeScript + Python + SQLite. Hai ứng dụng giao tiếp qua API, **không dùng chung cơ sở dữ liệu**. Hệ quả: OD-09 nghiêng về (a) tách hẳn danh tính; Koinonia xác thực với Nền tảng bằng `access_grants` | Chủ sản phẩm quyết định phần công nghệ; kết luận về OD-09 là suy luận của đặc tả, chưa được chủ sản phẩm xác nhận riêng | Dùng chung cơ sở dữ liệu (đã loại ở AD-20) |
+| AD-31 | **(Chốt OD-19, theo thử nghiệm 2026-11-14)** Realtime dùng Broadcast từ cơ sở dữ liệu (`realtime.send` trong cùng giao dịch với lệnh) trên kênh riêng `user:{id}`, `group:{id}` (sau này `conversation:{id}`), phân quyền bằng RLS trên `realtime.messages` qua hàm `rt.can_read_topic`. Khi quyền đọc của một người thay đổi, Backend gửi `access_changed` tới `user:{id}`; máy khách làm mới JWT và gửi lại cho Realtime, Realtime đánh giá lại và đóng kênh không còn quyền. Thời gian sống JWT đặt ngắn (đề xuất 10 phút) làm giới hạn trên cho máy khách không hợp tác | Thử nghiệm `spikes/od-19-realtime/RESULTS.md`: quyền chỉ được tính khi join và khi nhận JWT mới; người bị gỡ vẫn nhận sự kiện tới khi làm mới token, làm mới token đóng kênh ngay. Sự kiện chỉ mang định danh (AD-10) nên rò rỉ trong khoảng hở chỉ là định danh và thời điểm | Postgres Changes: kiểm tra quyền theo từng người nghe trên mỗi thay đổi, tốn và khó giới hạn trường. Gọi Realtime REST API từ Backend sau commit: mất tính nguyên tử với giao dịch |
 
 Thay đổi so với nguyên tắc đầu vào: **không có**. Chín nguyên tắc ở `PRODUCT_MODEL.md` §1 được giữ nguyên.
 
@@ -67,7 +68,7 @@ Thay đổi so với nguyên tắc đầu vào: **không có**. Chín nguyên t�
 | OD-16 | Thành viên mới của nhóm có thấy lịch sử hội thoại không | (a) thấy (b) chỉ từ lúc vào (c) trưởng nhóm chọn | (a) cho MVP; (c) về sau | Không (có mặc định) |
 | OD-17 | Độ tin cậy thông báo đẩy của PWA, nhất là iPhone: Web Push chỉ hoạt động khi người dùng đã thêm ứng dụng vào Màn hình chính. Tỷ lệ cài đặt thực tế của thành viên và hiệu lực của `action_required` khi chưa cài là chưa biết | (a) chấp nhận, hướng dẫn cài trong ứng dụng (b) thêm kênh phụ (email) cho `action_required` (c) bọc PWA thành ứng dụng gốc sau này | (a)+(b) cho MVP; đo tỷ lệ cài ở pilot. AD-07 vẫn đúng vì thông báo đẩy không phải điều kiện của "bắt buộc" | **F11** (chấp nhận), không chặn xây dựng |
 | OD-18 | Đăng nhập Google khi liên kết mở trong trình duyệt nhúng (ví dụ liên kết chia sẻ trong ứng dụng nhắn tin) có thể bị Google chặn. Chưa kiểm chứng với Zalo | (a) phát hiện trình duyệt nhúng và hướng dẫn "mở bằng trình duyệt" (b) thêm đăng nhập email/OTP sớm | (a) cho MVP; kiểm thử trên Zalo/Messenger thật. Nếu thất bại thường xuyên thì nâng (b) | **F1** (chấp nhận), không chặn xây dựng |
-| OD-19 | Cơ chế đẩy thời gian thực tới máy khách: Postgres Changes hay Broadcast từ cơ sở dữ liệu trên kênh riêng; xử lý token hết hạn cho kênh | (a) Postgres Changes (b) Broadcast + kênh riêng, phân quyền bằng RLS trên `realtime.messages` | (b), đề xuất chưa thử nghiệm. Cần một thử nghiệm kỹ thuật với quyền thành viên Group thay đổi khi đang kết nối | **F6, F11** |
+| OD-19 | ~~Cơ chế đẩy thời gian thực~~ **ĐÃ CHỐT → AD-31** (Broadcast + kênh riêng + RLS, đã thử nghiệm) | — | — | Không còn |
 
 ## 3. Kiểm tra chéo
 

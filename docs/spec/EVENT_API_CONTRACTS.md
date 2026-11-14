@@ -320,7 +320,9 @@ Mọi lệnh ghi trong bảng này tuân theo §4 và phát các verb đã liệ
 ## Phụ lục: Realtime và xác thực (AD-27, AD-28, OD-19)
 
 - Backend là nơi duy nhất ghi `activity_events` (cùng giao dịch với lệnh). Máy khách nhận cập nhật qua Supabase Realtime.
-- **Đề xuất (chưa thử nghiệm, OD-19):** dùng Broadcast từ cơ sở dữ liệu trên kênh riêng, chủ đề theo `conversation:{id}` và `user:{id}`; phân quyền bằng RLS trên `realtime.messages`. Không dùng Postgres Changes cho đường chính, vì mỗi thay đổi phải được kiểm tra quyền cho từng người nghe.
-- Quyền thành viên Group thay đổi khi kết nối còn mở: chính sách kênh chỉ được đánh giá theo token hiện có; khi có `group.member_removed`, Backend buộc máy khách đăng ký lại kênh và đặt thời gian sống token ngắn. Ca kiểm thử: người bị gỡ không nhận tin nhắn mới sau khi lệnh gỡ hoàn tất.
+- **Đã chốt (AD-31, thử nghiệm 2026-11-14):** Broadcast từ cơ sở dữ liệu bằng `realtime.send(payload, event, topic, true)` gọi trong cùng giao dịch với lệnh, trên kênh riêng `user:{id}` và `group:{id}` (sau này `conversation:{id}`). Quyền nghe kiểm tra bằng policy `rt_receive_broadcast` trên `realtime.messages` (hàm `rt.can_read_topic`, `db/supabase/0002_realtime_authz.sql`). Máy khách không có quyền gửi broadcast.
+- Realtime chỉ tính quyền khi join kênh và khi nhận JWT mới; giữa hai lần đó kết quả được lưu đệm. Đã đo: người bị gỡ khỏi nhóm vẫn nhận sự kiện của nhóm cho tới khi làm mới token; khi máy khách gửi JWT mới, Realtime đóng kênh ngay và join lại bị từ chối.
+- Vì vậy, mọi lệnh làm mất quyền đọc (gỡ khỏi Group, gỡ khỏi Organization, đổi `visibility`) phát thêm sự kiện `access_changed` tới `user:{id}` của người bị ảnh hưởng. Máy khách khi nhận phải làm mới phiên (`refreshSession`) rồi `realtime.setAuth(token mới)`, xoá bộ nhớ đệm liên quan (T14). Máy khách không hợp tác bị giới hạn bởi thời gian sống JWT (đề xuất 10 phút, cấu hình ở Supabase Auth).
+- Realtime là tín hiệu, không phải nguồn dữ liệu: sự kiện có thể mất (đã gặp khi dự án mới khởi tạo Realtime lần đầu). Máy khách tải lại qua API khi kết nối lại.
 - Sự kiện realtime chỉ mang `{type, id, activity_id}`, không mang nội dung (AD-10); máy khách tải lại qua API.
 - Mọi lệnh vẫn mang `Idempotency-Key` và `expected_version`; xác thực bằng `Authorization: Bearer <JWT Supabase>` kiểm tra tại Backend.
