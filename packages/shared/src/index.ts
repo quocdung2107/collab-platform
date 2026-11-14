@@ -4,3 +4,4 @@ export * from './org.js';
 export * from './messaging.js';
 export * from './scheduling.js';
 export * from './notifications.js';
+export * from './workspace.js';

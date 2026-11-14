@@ -47,6 +47,16 @@ export async function listNotifications(db: Queryable, userId: string, q: { befo
   return { items, ...counts, nextBefore: r.rows.length === q.limit ? r.rows.at(-1)!.updated_at.toISOString() : null };
 }
 
+/** "Có gì mới" của My Workspace: lớp direct chưa đọc, mới nhất trước (UX §4.1). */
+export async function unreadDirect(db: Queryable, userId: string, limit: number): Promise<NotificationDto[]> {
+  const r = await db.query<NRow>(
+    `select id, org_id, class, action_state, object_type, object_id, reasons, read_at, created_at, updated_at
+       from app.notifications where user_id = $1 and class = 'direct' and read_at is null order by updated_at desc limit $2`,
+    [userId, limit],
+  );
+  return (await render(db, userId, r.rows)).filter((n) => n.available);
+}
+
 export async function notificationCounts(db: Queryable, userId: string) {
   const c = await db.query<{ unread: number; pending: number }>(
     `select count(*) filter (where read_at is null)::int as unread, count(*) filter (where action_state = 'pending')::int as pending

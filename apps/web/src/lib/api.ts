@@ -25,6 +25,7 @@ import type {
   NotificationCountsDto,
   NotificationPageDto,
   SubscriptionMode,
+  WorkspaceDto,
 } from '@collab/shared';
 import { supabase } from './supabase';
 
@@ -70,6 +71,7 @@ const json = (method: string, body?: unknown, idempotent = false): RequestInit =
 
 export const api = {
   me: () => request<MeResponse>('/v1/me'),
+  workspace: () => request<WorkspaceDto>('/v1/me/workspace'),
 
   createOrg: (name: string) => request<OrganizationDto>('/v1/organizations', json('POST', { name }, true)),
   org: (orgId: string) => request<OrganizationDto>(`/v1/organizations/${orgId}`),

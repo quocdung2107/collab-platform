@@ -30,6 +30,7 @@ Các quyết định ở mức triển khai, không thay đổi AD nào trong `d
 | IN-24 | Sự kiện Event/Position/Assignment xảy ra trước `published_at` không sinh thông báo hay dòng hệ thống, kể cả khi notifier xử lý sau khi đã publish | F3 "Sửa bản nháp không báo ai"; notifier chạy bất đồng bộ nên không dựa vào trạng thái lúc xử lý | Lọc theo `status` lúc xử lý: lọt sự kiện nháp nếu publish xảy ra trước khi notifier chạy |
 | IN-25 | Người phụ trách cuối cùng của một Event chưa huỷ rời tổ chức → người thực hiện lệnh gỡ (hoặc chủ sở hữu/quản trị đầu tiên) được thêm làm người phụ trách, phát `event.owner_changed` (con của `member.removed`) | DATA_MODEL §7: Event đã publish luôn có ≥ 1 người phụ trách; đặc tả chưa nói ai nhận thay | Để Event không người phụ trách: mất người nhận "Cần bạn: lấp vị trí" |
 | IN-26 | Trả lời/gỡ trả `{assignmentId, status, event \| null}`; từ chối hoặc bị gỡ làm mất quyền xem (Event `visibility = groups`) → xoá Subscription trên Event và thread, phát `access_changed` | F6-T4; người gọi có thể không còn xem được Event sau lệnh của chính mình | Luôn trả Event: lỗi `not_found` sau một lệnh thành công |
+| IN-27 | My Workspace là một truy vấn `GET /v1/me/workspace` gộp mọi tổ chức; Task cắm vào qua `registerTaskSource` (S10). "Cần xử lý" gồm cả vị trí thiếu người của bản nháp mình phụ trách | F12-T1/T2; người điều phối thấy việc còn phải xếp trước khi công bố | Mỗi khối một API: nhiều vòng gọi trên điện thoại |
 
 ## Chưa làm, có chủ đích
 
