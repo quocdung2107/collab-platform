@@ -10,7 +10,9 @@ export function OrgPage({ orgId, meId, onMembershipChanged }: { orgId: string; m
   const org = useLoad(() => api.org(orgId), [orgId]);
   const members = useLoad(() => api.members(orgId), [orgId]);
   const groups = useLoad(() => api.groups(orgId), [orgId]);
-  const reload = () => (org.reload(), members.reload(), groups.reload());
+  const convs = useLoad(() => api.conversations(orgId), [orgId]);
+  const unread = new Map((convs.data ?? []).map((c) => [c.anchor.id, c.unreadCount]));
+  const reload = () => (org.reload(), members.reload(), groups.reload(), convs.reload());
   useRealtime([`user:${meId}`], () => (reload(), onMembershipChanged()));
 
   const act = useAction();
@@ -38,7 +40,10 @@ export function OrgPage({ orgId, meId, onMembershipChanged }: { orgId: string; m
         <ul className="list">
           {groups.data?.map((g) => (
             <li key={g.id}>
-              <a href={href({ name: 'group', id: g.id })}>{g.name}</a>
+              <span className="row">
+                <a href={href({ name: 'group', id: g.id })}>{g.name}</a>
+                {(unread.get(g.id) ?? 0) > 0 && <span className="badge">{unread.get(g.id)} mới</span>}
+              </span>
               <span className="hint">
                 {g.memberCount} người{g.myRole ? ` · bạn là ${g.myRole === 'leader' ? 'trưởng nhóm' : 'thành viên'}` : ''}
               </span>

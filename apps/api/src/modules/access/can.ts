@@ -7,8 +7,8 @@ import type { GroupRole, OrgRole } from '@collab/shared';
  * trả về quyết định. Không truy vấn DB ở đây để dễ kiểm thử theo ma trận; việc nạp ngữ cảnh
  * nằm ở context.ts.
  *
- * Phạm vi hiện tại: Organization (§4.1) và Group (§4.2). Event, Assignment, Task, Conversation...
- * được thêm theo từng lát cắt.
+ * Phạm vi hiện tại: Organization (§4.1), Group (§4.2), Conversation/Message (§4.3, anchor group).
+ * Event, Assignment, Task được thêm theo từng lát cắt.
  */
 
 /** Ngữ cảnh của người dùng trong MỘT tổ chức. orgRole = null nghĩa là không có Membership active. */
@@ -36,6 +36,28 @@ export type GroupObject = {
   leaderCount?: number;
 };
 
+/** Hội thoại (§4.3). Lát S4 chỉ có anchor group; event/task thêm khi có module tương ứng. */
+export type ConversationObject = {
+  type: 'conversation';
+  id: string;
+  orgId: string;
+  anchor: { type: 'group'; id: string };
+  readOnly: boolean;
+};
+
+export type MessageObject = {
+  type: 'message';
+  id: string;
+  orgId: string;
+  conversation: ConversationObject;
+  kind: 'user' | 'system';
+  senderId: string | null;
+  deleted: boolean;
+};
+
+export type ConversationAction = 'conversation.read' | 'conversation.post';
+export type MessageAction = 'message.edit' | 'message.delete';
+
 export type OrgAction =
   | 'org.view'
   | 'org.update'
@@ -58,24 +80,68 @@ export type GroupAction =
 
 export type Decision =
   | { allowed: true }
-  /** not_found: không được xem đối tượng → không lộ sự tồn tại (AD-12). forbidden: xem được nhưng không được làm. */
-  | { allowed: false; deny: 'not_found' | 'forbidden'; reason: string };
+  /**
+   * not_found: không được xem đối tượng → không lộ sự tồn tại (AD-12). forbidden: xem được nhưng không được làm.
+   * read_only: được xem nhưng đối tượng đã khoá ghi (hội thoại của nhóm lưu trữ / Event huỷ).
+   */
+  | { allowed: false; deny: 'not_found' | 'forbidden' | 'read_only'; reason: string };
 
 const ALLOW: Decision = { allowed: true };
 const hidden = (reason: string): Decision => ({ allowed: false, deny: 'not_found', reason });
 const forbidden = (reason: string): Decision => ({ allowed: false, deny: 'forbidden', reason });
+const readOnly = (reason: string): Decision => ({ allowed: false, deny: 'read_only', reason });
 
 export const isOrgAdmin = (a: ActorContext) => a.orgRole === 'owner' || a.orgRole === 'admin';
 
 export function can(actor: ActorContext, action: OrgAction, object: OrgObject): Decision;
 export function can(actor: ActorContext, action: GroupAction, object: GroupObject): Decision;
-export function can(actor: ActorContext, action: OrgAction | GroupAction, object: OrgObject | GroupObject): Decision {
+export function can(actor: ActorContext, action: ConversationAction, object: ConversationObject): Decision;
+export function can(actor: ActorContext, action: MessageAction, object: MessageObject): Decision;
+export function can(
+  actor: ActorContext,
+  action: OrgAction | GroupAction | ConversationAction | MessageAction,
+  object: OrgObject | GroupObject | ConversationObject | MessageObject,
+): Decision {
   const orgId = object.type === 'organization' ? object.id : object.orgId;
   // Mọi vai trò đòi hỏi Membership active trong đúng tổ chức của đối tượng (PERMISSION_MODEL §2).
   if (actor.orgId !== orgId || actor.orgRole === null) return hidden('not an active member of the organization');
 
   if (object.type === 'organization') return canOrg(actor, action as OrgAction, object);
-  return canGroup(actor, action as GroupAction, object);
+  if (object.type === 'group') return canGroup(actor, action as GroupAction, object);
+  if (object.type === 'conversation') return canConversation(actor, action as ConversationAction, object);
+  return canMessage(actor, action as MessageAction, object);
+}
+
+/** read(conversation): anchor group → là thành viên nhóm (AD-11: org admin ngoài nhóm cũng không đọc). */
+function readsConversation(actor: ActorContext, c: ConversationObject): boolean {
+  return actor.groupRoles.has(c.anchor.id);
+}
+
+function canConversation(actor: ActorContext, action: ConversationAction, c: ConversationObject): Decision {
+  if (!readsConversation(actor, c)) return hidden('cannot read conversation');
+  switch (action) {
+    case 'conversation.read':
+      return ALLOW;
+    case 'conversation.post':
+      return c.readOnly ? readOnly('conversation is read-only') : ALLOW;
+  }
+}
+
+function canMessage(actor: ActorContext, action: MessageAction, m: MessageObject): Decision {
+  const c = m.conversation;
+  if (!readsConversation(actor, c)) return hidden('cannot read conversation');
+  if (m.kind === 'system') return forbidden('system messages are immutable');
+  if (m.deleted) return forbidden('message deleted');
+  const own = m.senderId === actor.userId;
+  switch (action) {
+    case 'message.edit':
+      if (!own) return forbidden('only the sender edits');
+      return c.readOnly ? readOnly('conversation is read-only') : ALLOW;
+    case 'message.delete':
+      // Người gửi; leader của nhóm anchor; org admin nếu đọc được hội thoại (§4.3).
+      if (own || actor.groupRoles.get(c.anchor.id) === 'leader' || isOrgAdmin(actor)) return ALLOW;
+      return forbidden('requires sender, group leader or org admin');
+  }
 }
 
 function canOrg(actor: ActorContext, action: OrgAction, org: OrgObject): Decision {

@@ -153,7 +153,7 @@ Không lưu, không phải sự kiện miền. Mất gói được bù bằng c�
 | `conversation.message` | Người đang có quyền đọc và đang kết nối | `conversation_id`, `message_id`, `seq` | Tải tin mới |
 | `conversation.message_changed` | Như trên | `conversation_id`, `message_id`, `change : edited \| deleted` | Cập nhật tin |
 | `object.changed` | Người đang mở đối tượng | `object{type,id}`, `version` | Tải lại nếu `version` mới hơn |
-| `access.revoked` | Người vừa mất quyền | `object{type,id}` | Đóng màn hình, xoá bộ nhớ đệm |
+| `access_changed` | Người vừa mất (hoặc được) quyền, trên kênh `user:{id}` (AD-31) | `type`, `id`, `activity_id` | Làm mới JWT, `realtime.setAuth`, đóng màn hình mất quyền, xoá bộ nhớ đệm |
 
 `notification.created` là đầu ra của `notifier`; nó **không** quay lại thành ActivityEvent.
 
@@ -321,7 +321,7 @@ Mọi lệnh ghi trong bảng này tuân theo §4 và phát các verb đã liệ
 ## Phụ lục: Realtime và xác thực (AD-27, AD-28, OD-19)
 
 - Backend là nơi duy nhất ghi `activity_events` (cùng giao dịch với lệnh). Máy khách nhận cập nhật qua Supabase Realtime.
-- **Đã chốt (AD-31, thử nghiệm 2026-11-14):** Broadcast từ cơ sở dữ liệu bằng `realtime.send(payload, event, topic, true)` gọi trong cùng giao dịch với lệnh, trên kênh riêng `user:{id}` và `group:{id}` (sau này `conversation:{id}`). Quyền nghe kiểm tra bằng policy `rt_receive_broadcast` trên `realtime.messages` (hàm `rt.can_read_topic`, `db/supabase/0002_realtime_authz.sql`). Máy khách không có quyền gửi broadcast.
+- **Đã chốt (AD-31, thử nghiệm 2026-11-14):** Broadcast từ cơ sở dữ liệu bằng `realtime.send(payload, event, topic, true)` gọi trong cùng giao dịch với lệnh, trên kênh riêng `user:{id}`, `group:{id}` và `conversation:{id}` (anchor group từ S4; event/task bổ sung theo lát). Quyền nghe kiểm tra bằng policy `rt_receive_broadcast` trên `realtime.messages` (hàm `rt.can_read_topic`, `db/supabase/0002_realtime_authz.sql`). Máy khách không có quyền gửi broadcast.
 - Realtime chỉ tính quyền khi join kênh và khi nhận JWT mới; giữa hai lần đó kết quả được lưu đệm. Đã đo: người bị gỡ khỏi nhóm vẫn nhận sự kiện của nhóm cho tới khi làm mới token; khi máy khách gửi JWT mới, Realtime đóng kênh ngay và join lại bị từ chối.
 - Vì vậy, mọi lệnh làm mất quyền đọc (gỡ khỏi Group, gỡ khỏi Organization, đổi `visibility`) phát thêm sự kiện `access_changed` tới `user:{id}` của người bị ảnh hưởng. Máy khách khi nhận phải làm mới phiên (`refreshSession`) rồi `realtime.setAuth(token mới)`, xoá bộ nhớ đệm liên quan (T14). Máy khách không hợp tác bị giới hạn bởi thời gian sống JWT (đề xuất 10 phút, cấu hình ở Supabase Auth).
 - Realtime là tín hiệu, không phải nguồn dữ liệu: sự kiện có thể mất (đã gặp khi dự án mới khởi tạo Realtime lần đầu). Máy khách tải lại qua API khi kết nối lại.
