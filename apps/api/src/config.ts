@@ -5,6 +5,8 @@ const schema = z.object({
   SUPABASE_URL: z.url(),
   WEB_ORIGINS: z.string().default('http://localhost:5173'),
   PORT: z.coerce.number().int().positive().default(8080),
+  // supabase: realtime.send() trong giao dịch (AD-31). none: bỏ qua (Postgres thường, chạy cục bộ).
+  REALTIME_DRIVER: z.enum(['supabase', 'none']).default('supabase'),
 });
 
 export interface Config {
@@ -12,6 +14,7 @@ export interface Config {
   supabaseUrl: string;
   webOrigins: string[];
   port: number;
+  realtimeDriver: 'supabase' | 'none';
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -26,5 +29,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     supabaseUrl: e.SUPABASE_URL.replace(/\/+$/, ''),
     webOrigins: e.WEB_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean),
     port: e.PORT,
+    realtimeDriver: e.REALTIME_DRIVER,
   };
 }

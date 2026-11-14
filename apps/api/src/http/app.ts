@@ -1,14 +1,17 @@
 import cors from '@fastify/cors';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { Db } from '../db/pool.js';
+import { groupRoutes } from '../modules/groups/routes.js';
 import { identityRoutes } from '../modules/identity/routes.js';
 import { provisionUser, type UserRow } from '../modules/identity/users.js';
+import type { RealtimePublisher } from '../modules/realtime/publisher.js';
 import { bearerToken, type TokenVerifier } from './auth.js';
 import { AppError, errorHandler } from './errors.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
     db: Db;
+    realtime: RealtimePublisher;
   }
   interface FastifyRequest {
     user: UserRow | null;
@@ -20,6 +23,7 @@ declare module 'fastify' {
 export interface AppDeps {
   db: Db;
   verifyToken: TokenVerifier;
+  realtime: RealtimePublisher;
   webOrigins: string[];
   logger?: boolean;
 }
@@ -29,6 +33,7 @@ const PUBLIC_ROUTES = new Set(['/healthz']);
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const app = Fastify({ logger: deps.logger ?? false });
   app.decorate('db', deps.db);
+  app.decorate('realtime', deps.realtime);
   app.decorateRequest('user', null);
   app.decorateRequest('currentUser', function (this: { user: UserRow | null }) {
     if (!this.user) throw new AppError('unauthenticated', 'Chưa đăng nhập');
@@ -37,7 +42,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.setErrorHandler(errorHandler);
   await app.register(cors, {
     origin: deps.webOrigins,
+    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
     allowedHeaders: ['Authorization', 'Content-Type', 'Idempotency-Key'],
+    exposedHeaders: ['Idempotent-Replayed'],
   });
 
   app.addHook('onRequest', async (req) => {
@@ -51,5 +58,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return { ok: true };
   });
   await app.register(identityRoutes);
+  await app.register(groupRoutes);
   return app;
 }

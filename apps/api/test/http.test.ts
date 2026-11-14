@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Db } from '../src/db/pool.js';
 import { buildApp } from '../src/http/app.js';
 import { supabaseVerifier } from '../src/http/auth.js';
+import { MemoryRealtime } from '../src/modules/realtime/publisher.js';
 import { freshDb, TEST_DB_URL } from './db.js';
 
 const SUPABASE_URL = 'https://test.supabase.co';
@@ -28,6 +29,7 @@ describe.skipIf(!TEST_DB_URL)('HTTP: xác thực JWT Supabase (khoá bất đố
     app = await buildApp({
       db,
       verifyToken: supabaseVerifier(SUPABASE_URL, createLocalJWKSet({ keys: [jwk] })),
+      realtime: new MemoryRealtime(),
       webOrigins: ['http://localhost:5173'],
     });
   });
