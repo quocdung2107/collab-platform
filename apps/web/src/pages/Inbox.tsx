@@ -4,12 +4,13 @@ import { api } from '../lib/api';
 import { useRealtime } from '../lib/realtime';
 import { go, href, type Route } from '../lib/route';
 import { useAction, useLoad } from '../lib/useLoad';
+import { RespondButtons } from './Respond';
 
 const ago = (iso: string) => new Date(iso).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 const routeOf = (n: NotificationDto): Route | null => {
   if (!n.link) return null;
-  return n.link.route === 'org' ? { name: 'org', id: n.link.id } : n.link.route === 'group' ? { name: 'group', id: n.link.id } : n.link.route === 'event' ? { name: 'event', id: n.link.id } : null;
+  return n.link.route === 'org' ? { name: 'org', id: n.link.id } : n.link.route === 'group' ? { name: 'group', id: n.link.id } : n.link.route === 'event' ? { name: 'event', id: n.link.id } : { name: 'task', id: n.link.id };
 };
 
 /** Hộp thông báo (F11): "Cần bạn" lên đầu, rồi "Nên biết". */
@@ -55,9 +56,9 @@ export function Inbox({ meId, onCounts }: { meId: string; onCounts: () => void }
       {page.error && <p className="error">{page.error}</p>}
       {act.error && <p className="error">{act.error}</p>}
       {pending.length > 0 && <h2>Cần bạn ({pending.length})</h2>}
-      <ul className="list">{pending.map((n) => <Item key={n.id} n={n} onOpen={open} />)}</ul>
+      <ul className="list">{pending.map((n) => <Item key={n.id} n={n} onOpen={open} onChanged={() => (page.reload(), onCounts())} />)}</ul>
       {rest.length > 0 && <h2>Nên biết</h2>}
-      <ul className="list">{rest.map((n) => <Item key={n.id} n={n} onOpen={open} />)}</ul>
+      <ul className="list">{rest.map((n) => <Item key={n.id} n={n} onOpen={open} onChanged={page.reload} />)}</ul>
       {data && items.length === 0 && <p className="hint">Chưa có thông báo nào.</p>}
       {cursor && (
         <button
@@ -72,7 +73,7 @@ export function Inbox({ meId, onCounts }: { meId: string; onCounts: () => void }
   );
 }
 
-function Item({ n, onOpen }: { n: NotificationDto; onOpen: (n: NotificationDto) => void }) {
+function Item({ n, onOpen, onChanged }: { n: NotificationDto; onOpen: (n: NotificationDto) => void; onChanged: () => void }) {
   const state = n.actionState === 'done' ? 'Đã xử lý' : n.actionState === 'superseded' ? 'Không còn cần' : null;
   return (
     <li className={n.readAt ? 'notif' : 'notif unread'}>
@@ -86,8 +87,12 @@ function Item({ n, onOpen }: { n: NotificationDto; onOpen: (n: NotificationDto) 
             </span>
           ))}
       </button>
-      <span className="hint">
-        {state ?? (n.actionState === 'pending' ? 'Cần bạn' : '')} {ago(n.updatedAt)}
+      <span className="grid">
+        <span className="hint">
+          {state ?? (n.actionState === 'pending' ? 'Cần bạn' : '')} {ago(n.updatedAt)}
+        </span>
+        {n.actionState === 'pending' &&
+          n.pendingAssignments.map((a) => <RespondButtons key={a.id} assignmentId={a.id} status={a.status} onDone={onChanged} />)}
       </span>
     </li>
   );

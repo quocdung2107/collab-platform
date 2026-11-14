@@ -23,3 +23,13 @@ services:
         value: https://quocdung2107.github.io,http://localhost:5173
       - key: REALTIME_DRIVER
         value: supabase
+      # Khoá máy chủ Supabase (Project Settings → API Keys: secret / service_role) để bật tệp đính kèm. Nhập tay, không commit.
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      # Web Push (F11b): cặp khoá VAPID (npx web-push generate-vapid-keys) và subject dạng mailto:/https://. Nhập tay, không commit.
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
