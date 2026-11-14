@@ -64,7 +64,7 @@ export async function processActivity(tx: Tx, rt: RealtimePublisher, a: Activity
 
 async function isDraftTime(tx: Tx, a: Activity) {
   const [domain] = a.verb.split('.');
-  if (!a.event_id || (domain !== 'event' && domain !== 'position' && domain !== 'assignment')) return false;
+  if (!a.event_id || (domain !== 'event' && domain !== 'position' && domain !== 'assignment' && domain !== 'task')) return false;
   const r = await tx.query<{ draft: boolean }>(
     // So trong SQL: Date của JS cắt micro giây nên so ở ứng dụng sẽ sai với sự kiện cùng giao dịch publish.
     `select (e.published_at is null or x.occurred_at < e.published_at) as draft

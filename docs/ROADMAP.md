@@ -14,13 +14,13 @@ Cập nhật: 2026-11-14. Nguồn tiêu chí: `docs/spec/MVP_ACCEPTANCE_CRITERIA
 | S6 | Lõi thông báo: hộp thông báo, khử trùng, gộp, Subscription, dòng hệ thống (F11a) | #10 |
 | S7 | Trả lời phân công, trả lời hộ, gỡ, thay người; gỡ thành viên huỷ vị trí tương lai (F5, F6, F1-T4) | #11 |
 | S8 | My Workspace: Cần xử lý, Cần phản hồi, Sắp tới, Có gì mới (F12) | #12 |
-| S9 | Dời lịch (xác nhận lại theo ngưỡng/đổi ngày), đổi địa điểm, huỷ buổi (F7) | PR S9 |
+| S9 | Dời lịch (xác nhận lại theo ngưỡng/đổi ngày), đổi địa điểm, huỷ buổi (F7) | #13 |
+| S10 | Task: tạo/giao/nhận/tiến độ/cờ/người cùng làm, thread Task, Task mẫu, dời hạn theo buổi, gỡ thành viên (F8, F7-T3..T5, F1-T5) | PR S10 |
 
 ## Thứ tự còn lại
 
 | Lát | Nội dung | Tiêu chí | Phụ thuộc | Ghi chú |
 | --- | --- | --- | --- | --- |
-| S10 | **Task (F8)** | F8-T1..T8; F7-T3..T5 | S9 | Gỡ `TODO(F4–F8)` phần Task (F1-T5) |
 | S11 | **Liên kết + tệp (F10, F9b)**: Task từ tin nhắn, thẻ đối tượng, khối Liên quan; ảnh/tệp qua Storage | F10-T1..T7; F14-T4 | S4, S10 | |
 | S12 | **Đẩy thật (F11b)**: thiết bị, Web Push (từ OD-17), Preference, giờ yên lặng, thử lại | F11-T6..T9, T11; F14-T6 | S6 | Bỏ hàm thử `push-spike` |
 | S13 | **Lịch sử + rà soát (F13, F14)**: trang Lịch sử, quét T1–T15, 4 kịch bản E2E trên thiết bị thật | F13-T1..T5; F14-T1,T3,T5; E2E-1..4 | tất cả | Dọn dữ liệu/hàm thử nghiệm |

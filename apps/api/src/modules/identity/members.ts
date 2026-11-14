@@ -1,3 +1,4 @@
+import { releaseMemberFromTasks } from '../tasks/hooks.js';
 import type { OrgRole } from '@collab/shared';
 import type { CommandCtx } from '../../http/command.js';
 import { AppError } from '../../http/errors.js';
@@ -54,7 +55,7 @@ export async function changeMemberRole(ctx: CommandCtx, orgId: string, targetId:
  * Hệ quả đã có trong lát cắt này: gỡ khỏi mọi Group (sự kiện con group.member_removed), Membership → removed,
  * tín hiệu access_changed (AD-31).
  * Lịch: huỷ Assignment tương lai (member_left), gỡ event_owners, xoá Subscription (S7).
- * TODO(S10): bỏ owner Task chưa xong, gỡ task_collaborators. TODO(S12): thiết bị đẩy, delivery chưa gửi.
+ * Task: bỏ owner Task chưa xong (task.assigned về rỗng), gỡ task_collaborators (S10). TODO(S12): thiết bị đẩy, delivery chưa gửi.
  */
 export async function removeMember(ctx: CommandCtx, orgId: string, targetId: string, bySelf: boolean) {
   const { actor } = await viewOrg(ctx.tx, ctx.user.id, orgId, true);
@@ -98,6 +99,7 @@ export async function removeMember(ctx: CommandCtx, orgId: string, targetId: str
   }
 
   await releaseMemberFromScheduling(ctx, orgId, targetId, rootId);
+  await releaseMemberFromTasks(ctx, orgId, targetId, rootId);
 
   await ctx.tx.query(
     `update app.memberships set status = 'removed', removed_at = now(), removed_by = $3 where org_id = $1 and user_id = $2`,

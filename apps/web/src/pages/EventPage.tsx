@@ -9,6 +9,7 @@ import { ChatPanel } from './ChatPanel';
 import { assignmentStatusLabel, eventStatusLabel } from './EventLabels';
 import { NotAvailable } from './OrgPage';
 import { RespondButtons } from './Respond';
+import { TaskList } from './Tasks';
 
 /** Trang buổi (F3, F4): thông tin, vị trí phục vụ, xếp người, thread trao đổi. */
 export function EventPage({ eventId, meId }: { eventId: string; meId: string }) {
@@ -117,6 +118,13 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
         {e.canAddPositions && e.status !== 'cancelled' && <AddPosition e={e} onAdded={ev.reload} />}
       </section>
 
+      <TaskList
+        load={() => api.eventTasks(eventId)}
+        deps={[eventId, e.version]}
+        realtimeTopics={[`event:${eventId}`]}
+        newTask={e.status !== 'cancelled' && (e.canEdit || e.canAddPositions) ? { scope: { type: 'event', eventId }, members: members.data ?? [], eventStartsAt: e.startsAt } : null}
+      />
+
       {e.conversationId && (
         <section className="card">
           <h2>Trao đổi về buổi này</h2>
@@ -193,7 +201,7 @@ function ChangeEvent({ e, onDone }: { e: EventDto; onDone: (msg: string) => void
                 `Đã dời giờ. ${s.notifiedCount} người được báo` +
                   (s.reconfirmCount ? `, ${s.reconfirmCount} người cần xác nhận lại` : '') +
                   (s.tasksShifted ? `, ${s.tasksShifted} việc dời hạn theo buổi` : '') +
-                  (s.tasksAbsoluteDue ? `, ${s.tasksAbsoluteDue} việc giữ hạn cố định` : '') +
+                  (s.tasksAbsoluteDue.length ? `. Việc giữ hạn cố định, xem lại: ${s.tasksAbsoluteDue.map((t) => t.title).join(', ')}` : '') +
                   '.',
               ),
           );
@@ -465,17 +473,17 @@ function AddPosition({ e, onAdded }: { e: EventDto; onAdded: () => void }) {
 }
 
 /** Theo dõi / tắt tiếng (NOTIFICATION_ENGINE §6): tắt tiếng không bỏ thông báo thuộc trách nhiệm của bạn. */
-function Follow({ eventId }: { eventId: string }) {
-  const sub = useLoad(() => api.subscription('event', eventId), [eventId]);
+export function Follow({ eventId, type = 'event', label = 'Thông báo về buổi này:' }: { eventId: string; type?: 'event' | 'task'; label?: string }) {
+  const sub = useLoad(() => api.subscription(type, eventId), [eventId, type]);
   const act = useAction();
   if (!sub.data) return null;
   return (
     <label className="row hint">
-      Thông báo về buổi này:
+      {label}
       <select
         value={sub.data.mode ?? ''}
         disabled={act.busy}
-        onChange={(x) => void act.run(() => api.setSubscription('event', eventId, (x.target.value || null) as 'follow' | 'mute' | null), sub.reload)}
+        onChange={(x) => void act.run(() => api.setSubscription(type, eventId, (x.target.value || null) as 'follow' | 'mute' | null), sub.reload)}
       >
         <option value="">Mặc định</option>
         <option value="follow">Theo dõi mọi cập nhật</option>

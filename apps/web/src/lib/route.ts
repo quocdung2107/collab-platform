@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react';
 
 /**
  * Định tuyến bằng hash để chạy được trên GitHub Pages (không có rewrite phía máy chủ).
- * #org=<id> · #group=<id> · #event=<id> · #newevent=<orgId> · #invite=<token> · #od17
+ * #org=<id> · #group=<id> · #event=<id> · #task=<id> · #newevent=<orgId> · #invite=<token> · #od17
  */
 export type Route =
   | { name: 'home' }
   | { name: 'org'; id: string }
   | { name: 'group'; id: string }
   | { name: 'event'; id: string }
+  | { name: 'task'; id: string }
   /** Tạo Event trong tổ chức id; copy = Event nguồn khi "sao chép buổi trước". */
   | { name: 'newevent'; id: string; copy?: string }
   | { name: 'invite'; token: string }
@@ -25,6 +26,7 @@ export function parseRoute(hash: string): Route {
   if (v && k === 'org') return { name: 'org', id: v };
   if (v && k === 'group') return { name: 'group', id: v };
   if (v && k === 'event') return { name: 'event', id: v };
+  if (v && k === 'task') return { name: 'task', id: v };
   if (v && k === 'newevent') {
     const j = v.indexOf('&copy=');
     return j < 0 ? { name: 'newevent', id: v } : { name: 'newevent', id: v.slice(0, j), copy: v.slice(j + 6) };

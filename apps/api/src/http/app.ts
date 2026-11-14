@@ -7,6 +7,7 @@ import { notificationRoutes } from '../modules/notifications/routes.js';
 import { workspaceRoutes } from '../modules/workspace/routes.js';
 import { schedulingRoutes } from '../modules/scheduling/routes.js';
 import { identityRoutes } from '../modules/identity/routes.js';
+import { taskRoutes } from '../modules/tasks/routes.js';
 import { provisionUser, type UserRow } from '../modules/identity/users.js';
 import type { RealtimePublisher } from '../modules/realtime/publisher.js';
 import { bearerToken, type TokenVerifier } from './auth.js';
@@ -76,5 +77,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(schedulingRoutes);
   await app.register(notificationRoutes);
   await app.register(workspaceRoutes);
+  await app.register(taskRoutes);
   return app;
 }

@@ -4,6 +4,7 @@ import type { CommandCtx } from '../../http/command.js';
 import { revokeLostViewers } from './lifecycle.js';
 import { AppError } from '../../http/errors.js';
 import { normalizeText } from '../../lib/text.js';
+import { eventTaskSeeds } from './templates.js';
 import { assertAllowed } from '../access/authorize.js';
 import { can, managesPosition, viewsEvent, type ActorContext, type EventObject } from '../access/can.js';
 import { emit } from '../activity/emit.js';
@@ -247,6 +248,7 @@ export async function createEvent(ctx: CommandCtx, orgId: string, input: CreateE
   let seeds: PositionSeed[] = [];
   let templateId: string | null = null;
   let copiedFrom: string | null = null;
+  let taskSeeds: Array<{ title: string; description: string | null; dueOffsetMin: number | null }> = [];
 
   if (input.templateId) {
     const t = await ctx.tx.query<{ id: string; name: string; definition: TemplateDefinition }>(
@@ -260,7 +262,7 @@ export async function createEvent(ctx: CommandCtx, orgId: string, input: CreateE
     durationMin = def.durationMin;
     if (!input.groupIds) groupIds = def.groupIds;
     seeds = def.positions.map((p) => ({ ...p, people: [] }));
-    // TODO(S10): sinh Task mẫu (def.tasks) khi có module Task.
+    taskSeeds = def.tasks.map((t) => ({ title: t.title, description: null, dueOffsetMin: t.dueOffsetMin }));
   } else if (input.copyFromId) {
     const src = await viewEvent(ctx.tx, ctx.user.id, input.copyFromId).catch(() => {
       throw new AppError('validation_failed', 'Buổi nguồn không tồn tại', { fields: { copyFromId: 'not_found' } });
@@ -292,6 +294,7 @@ export async function createEvent(ctx: CommandCtx, orgId: string, input: CreateE
       reportOffsetMin: p.report_offset_min,
       people: people.rows.filter((x) => x.position_id === p.id).map((x) => x.user_id),
     }));
+    taskSeeds = await eventTaskSeeds(ctx.tx, src.row.id, src.row.starts_at);
   }
 
   if (!title) throw new AppError('validation_failed', 'Thiếu tiêu đề', { fields: { title: 'required' } });
@@ -341,6 +344,23 @@ export async function createEvent(ctx: CommandCtx, orgId: string, input: CreateE
     context: { eventId: row.id },
     payload: { title, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(), template_id: templateId, copied_from: copiedFrom },
   });
+
+  // Task mẫu / sao chép (F3): không người phụ trách, hạn theo buổi; sự kiện lúc nháp không báo ai (IN-24).
+  for (const t of taskSeeds) {
+    const k = await ctx.tx.query<{ id: string }>(
+      `insert into app.tasks (org_id, scope_type, event_id, title, title_norm, description, created_by, due_at, due_offset_min)
+       values ($1, 'event', $2, $3, $4, $5, $6, $7, $8) returning id`,
+      [orgId, row.id, t.title, normalizeText(t.title), t.description, ctx.user.id, t.dueOffsetMin === null ? null : new Date(startsAt.getTime() + t.dueOffsetMin * 60_000), t.dueOffsetMin],
+    );
+    await emit(ctx, {
+      orgId,
+      verb: 'task.created',
+      object: { type: 'task', id: k.rows[0]!.id },
+      context: { taskId: k.rows[0]!.id, eventId: row.id },
+      causeId: rootId,
+      payload: { title: t.title, scope_type: 'event', event_id: row.id, group_id: null, due_at: null },
+    });
+  }
 
   const activeMembers = new Set(
     (

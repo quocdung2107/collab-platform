@@ -11,6 +11,8 @@ import { emit } from '../activity/emit.js';
 import { viewOrg } from '../identity/organizations.js';
 import { topics } from '../realtime/publisher.js';
 import { EVENT_COLS, eventObjects, type EventRow } from '../scheduling/access.js';
+import { TASK_COLS, taskObjects, type TaskRow } from '../tasks/access.js';
+import type { TaskObject } from '../access/can.js';
 
 /**
  * Module Messaging (F9, PERMISSION_MODEL §4.3, EVENT_API_CONTRACTS §5.8).
@@ -20,7 +22,7 @@ import { EVENT_COLS, eventObjects, type EventRow } from '../scheduling/access.js
 interface ConvRow {
   id: string;
   org_id: string;
-  anchor_type: 'group' | 'event';
+  anchor_type: 'group' | 'event' | 'task';
   anchor_id: string;
   anchor_name: string;
   last_seq: string;
@@ -29,10 +31,11 @@ interface ConvRow {
 }
 
 const CONV_SELECT = `
-  select c.id, c.org_id, c.anchor_type, c.anchor_id, coalesce(g.name, e.title) as anchor_name, c.last_seq, c.last_message_at, c.read_only
+  select c.id, c.org_id, c.anchor_type, c.anchor_id, coalesce(g.name, e.title, t.title) as anchor_name, c.last_seq, c.last_message_at, c.read_only
     from app.conversations c
     left join app.groups g on g.id = c.anchor_id and c.anchor_type = 'group'
     left join app.events e on e.id = c.anchor_id and c.anchor_type = 'event'
+    left join app.tasks t on t.id = c.anchor_id and c.anchor_type = 'task'
     join app.organizations o on o.id = c.org_id and o.deleted_at is null`;
 
 /** Dựng ConversationObject; anchor event cần EventObject để tính view(event). */
@@ -41,6 +44,16 @@ async function toObjects(db: Queryable, convs: ConvRow[]): Promise<Map<string, C
   const events = eventRows.length
     ? await eventObjects(db, (await db.query<EventRow>(`select ${EVENT_COLS} from app.events where id = any($1::uuid[])`, [eventRows])).rows)
     : new Map<string, EventObject>();
+  const taskIds = convs.filter((c) => c.anchor_type === 'task').map((c) => c.anchor_id);
+  const tasks = taskIds.length
+    ? await taskObjects(db, (await db.query<TaskRow>(`select ${TASK_COLS} from app.tasks where id = any($1::uuid[])`, [taskIds])).rows)
+    : new Map<string, TaskObject>();
+  const anchorOf = (c: ConvRow): ConversationObject['anchor'] =>
+    c.anchor_type === 'group'
+      ? { type: 'group', id: c.anchor_id }
+      : c.anchor_type === 'event'
+        ? { type: 'event', id: c.anchor_id, event: events.get(c.anchor_id)! }
+        : { type: 'task', id: c.anchor_id, task: tasks.get(c.anchor_id)! };
   return new Map(
     convs.map((c) => [
       c.id,
@@ -48,7 +61,7 @@ async function toObjects(db: Queryable, convs: ConvRow[]): Promise<Map<string, C
         type: 'conversation' as const,
         id: c.id,
         orgId: c.org_id,
-        anchor: c.anchor_type === 'group' ? { type: 'group' as const, id: c.anchor_id } : { type: 'event' as const, id: c.anchor_id, event: events.get(c.anchor_id)! },
+        anchor: anchorOf(c),
         readOnly: c.read_only,
       },
     ]),
@@ -61,6 +74,15 @@ export async function ensureEventConversation(tx: Tx, orgId: string, eventId: st
     `insert into app.conversations (org_id, anchor_type, anchor_id) values ($1, 'event', $2) on conflict (anchor_type, anchor_id) do nothing`,
     [orgId, eventId],
   );
+}
+
+/** Thread của Task: tạo khi có người mở trao đổi lần đầu (NOTIFICATION_ENGINE §2 "nếu Conversation đó đã tồn tại"). */
+export async function ensureTaskConversation(tx: Tx, orgId: string, taskId: string) {
+  await tx.query(
+    `insert into app.conversations (org_id, anchor_type, anchor_id) values ($1, 'task', $2) on conflict (anchor_type, anchor_id) do nothing`,
+    [orgId, taskId],
+  );
+  return (await tx.query<{ id: string }>(`select id from app.conversations where anchor_type = 'task' and anchor_id = $1`, [taskId])).rows[0]!.id;
 }
 
 /** Tạo hội thoại cho nhóm (gọi trong giao dịch tạo nhóm). */
@@ -95,7 +117,7 @@ async function summaries(db: Queryable, userId: string, where: string, params: u
             c.id`)}
        left join app.conversation_states s on s.conversation_id = c.id and s.user_id = $1
       where ${where}
-      order by c.last_message_at desc nulls last, coalesce(g.name_norm, e.title_norm)`,
+      order by c.last_message_at desc nulls last, coalesce(g.name_norm, e.title_norm, t.title_norm)`,
     [userId, ...params],
   );
   return r.rows.map((c) => ({
@@ -236,7 +258,11 @@ async function assertMentionable(db: Queryable, conv: ConvRow, obj: Conversation
 }
 
 const anchorContext = (c: ConvRow) =>
-  c.anchor_type === 'group' ? { groupId: c.anchor_id, conversationId: c.id } : { eventId: c.anchor_id, conversationId: c.id };
+  c.anchor_type === 'group'
+    ? { groupId: c.anchor_id, conversationId: c.id }
+    : c.anchor_type === 'event'
+      ? { eventId: c.anchor_id, conversationId: c.id }
+      : { taskId: c.anchor_id, conversationId: c.id };
 
 async function markReadUpTo(tx: Tx, conversationId: string, userId: string, seq: number) {
   await tx.query(

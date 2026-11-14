@@ -31,7 +31,21 @@ export function Today({ meId, renderTask }: { meId: string; renderTask?: (t: Wor
         {(x.status === 'requested' || x.status === 'reconfirm') && <RespondButtons assignmentId={x.id} status={x.status} onDone={ws.reload} />}
       </li>
     ) : (
-      <li key={x.id}>{renderTask ? renderTask(x, ws.reload) : x.title}</li>
+      <li key={x.id}>
+        {renderTask ? (
+          renderTask(x, ws.reload)
+        ) : (
+          <span className="grid">
+            <a href={href({ name: 'task', id: x.id })}>{x.title}</a>
+            <span className="hint">
+              Việc{x.scope.name ? ` · ${x.scope.name}` : ''}
+              {x.dueAt ? ` · hạn ${dayLabel(x.dueAt)} ${timeLabel(x.dueAt)}` : ''} · {x.orgName}
+              {x.acceptance === 'pending' ? ' · chờ bạn nhận' : ''}
+            </span>
+          </span>
+        )}
+        {x.overdue && <span className="tag warn">Quá hạn</span>}
+      </li>
     );
 
   return (
@@ -56,7 +70,7 @@ export function Today({ meId, renderTask }: { meId: string; renderTask?: (t: Wor
             ))}
             {w.coordinate.declinedTasks.map((t) => (
               <li key={t.id}>
-                <a href={`#task=${t.id}`}>{t.title}</a>
+                <a href={href({ name: 'task', id: t.id })}>{t.title}</a>
                 <span className="hint">{t.declinedBy} đã từ chối: cần giao lại</span>
               </li>
             ))}

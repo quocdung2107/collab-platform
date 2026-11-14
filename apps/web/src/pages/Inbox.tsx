@@ -10,7 +10,7 @@ const ago = (iso: string) => new Date(iso).toLocaleString('vi-VN', { day: '2-dig
 
 const routeOf = (n: NotificationDto): Route | null => {
   if (!n.link) return null;
-  return n.link.route === 'org' ? { name: 'org', id: n.link.id } : n.link.route === 'group' ? { name: 'group', id: n.link.id } : n.link.route === 'event' ? { name: 'event', id: n.link.id } : null;
+  return n.link.route === 'org' ? { name: 'org', id: n.link.id } : n.link.route === 'group' ? { name: 'group', id: n.link.id } : n.link.route === 'event' ? { name: 'event', id: n.link.id } : { name: 'task', id: n.link.id };
 };
 
 /** Hộp thông báo (F11): "Cần bạn" lên đầu, rồi "Nên biết". */

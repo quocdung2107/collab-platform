@@ -7,6 +7,7 @@ import { useRealtime } from './lib/realtime';
 import { go, href, pendingInvite, useRoute } from './lib/route';
 import { useLoad } from './lib/useLoad';
 import { signInWithGoogle, signOut, supabase, supabaseConfigured } from './lib/supabase';
+import { TaskPage } from './pages/Tasks';
 import { EventPage } from './pages/EventPage';
 import { GroupPage } from './pages/GroupPage';
 import { Home } from './pages/Home';
@@ -139,6 +140,7 @@ export function App() {
       {route.name === 'org' && <OrgPage key={route.id} orgId={route.id} meId={me.user.id} onMembershipChanged={reloadMe} />}
       {route.name === 'group' && <GroupPage key={route.id} groupId={route.id} meId={me.user.id} />}
       {route.name === 'event' && <EventPage key={route.id} eventId={route.id} meId={me.user.id} />}
+      {route.name === 'task' && <TaskPage key={route.id} taskId={route.id} meId={me.user.id} />}
       {route.name === 'newevent' && <NewEventPage key={route.id + (route.copy ?? '')} orgId={route.id} copyFrom={route.copy} />}
       {route.name === 'home' && <Home me={me} onChanged={reloadMe} />}
       <button className="button small" onClick={() => signOut()}>

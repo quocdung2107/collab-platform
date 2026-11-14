@@ -26,6 +26,8 @@ import type {
   NotificationPageDto,
   SubscriptionMode,
   WorkspaceDto,
+  TaskDto,
+  TaskSummaryDto,
 } from '@collab/shared';
 import { supabase } from './supabase';
 
@@ -122,6 +124,20 @@ export const api = {
     request<{ event: EventDto; summary: RescheduleSummary }>(`/v1/events/${eventId}/reschedule`, json('POST', body)),
   relocateEvent: (eventId: string, body: { expectedVersion: number; location: string | null }) => request<EventDto>(`/v1/events/${eventId}/relocate`, json('POST', body)),
   cancelEvent: (eventId: string, body: { expectedVersion: number; reason?: string }) => request<EventDto>(`/v1/events/${eventId}/cancel`, json('POST', body)),
+  task: (id: string) => request<TaskDto>(`/v1/tasks/${id}`),
+  eventTasks: (eventId: string) => request<TaskSummaryDto[]>(`/v1/events/${eventId}/tasks`),
+  groupTasks: (groupId: string) => request<TaskSummaryDto[]>(`/v1/groups/${groupId}/tasks`),
+  createTask: (body: NewTaskBody) => request<TaskDto>('/v1/tasks', json('POST', body, true)),
+  updateTask: (id: string, body: { expectedVersion: number; title?: string; description?: string | null; dueAt?: string | null; dueOffsetMin?: number | null }) =>
+    request<TaskDto>(`/v1/tasks/${id}`, json('PATCH', body)),
+  assignTask: (id: string, body: { expectedVersion: number; ownerId: string | null; requiresAcceptance?: boolean }) =>
+    request<TaskDto | null>(`/v1/tasks/${id}/assign`, json('POST', body)),
+  respondTask: (id: string, body: { response: 'accept' | 'decline'; reason?: string }) => request<TaskDto>(`/v1/tasks/${id}/respond`, json('POST', body)),
+  taskStatus: (id: string, body: { expectedVersion: number; status: 'open' | 'in_progress' | 'done' }) => request<TaskDto>(`/v1/tasks/${id}/status`, json('POST', body)),
+  cancelTask: (id: string, body: { expectedVersion: number; reason?: string }) => request<TaskDto>(`/v1/tasks/${id}/cancel`, json('POST', body)),
+  taskFlags: (id: string, body: { blocked?: boolean; needsHelp?: boolean }) => request<TaskDto>(`/v1/tasks/${id}/flags`, json('POST', body)),
+  taskCollaborators: (id: string, body: { add?: string[]; remove?: string[] }) => request<TaskDto | null>(`/v1/tasks/${id}/collaborators`, json('POST', body)),
+  openTaskConversation: (id: string) => request<{ conversationId: string }>(`/v1/tasks/${id}/conversation`, json('POST', {})),
   deleteDraft: (eventId: string, expectedVersion: number) => request(`/v1/events/${eventId}`, json('DELETE', { expectedVersion })),
   publishEvent: (eventId: string, expectedVersion: number) =>
     request<{ event: EventDto; requestedCount: number }>(`/v1/events/${eventId}/publish`, json('POST', { expectedVersion })),
@@ -157,11 +173,22 @@ export const api = {
     request<{ mode: SubscriptionMode | null }>(`/v1/subscriptions/${type}/${id}`, mode ? json('PUT', { mode }) : json('DELETE')),
 };
 
+export interface NewTaskBody {
+  orgId?: string;
+  title: string;
+  description?: string | null;
+  scope: { type: 'event' | 'group' | 'private'; eventId?: string; groupId?: string };
+  ownerId?: string | null;
+  requiresAcceptance?: boolean;
+  dueAt?: string | null;
+  dueOffsetMin?: number | null;
+}
+
 export interface RescheduleSummary {
   reconfirmCount: number;
   notifiedCount: number;
   tasksShifted: number;
-  tasksAbsoluteDue: number;
+  tasksAbsoluteDue: Array<{ id: string; title: string; dueAt: string }>;
 }
 
 export interface EventPatch {
