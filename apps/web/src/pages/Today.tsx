@@ -1,5 +1,6 @@
 import type { WorkspaceAssignmentDto, WorkspaceTaskDto } from '@collab/shared';
 import { api } from '../lib/api';
+import { setCurrentOrg } from '../lib/currentOrg';
 import { dayLabel, timeLabel } from '../lib/datetime';
 import { useRealtime } from '../lib/realtime';
 import { go, href } from '../lib/route';
@@ -122,7 +123,7 @@ export function Today({ meId, renderTask }: { meId: string; renderTask?: (t: Wor
         <section className="card">
           <p>Bạn chưa có việc nào.</p>
           {w.firstOrgId && (
-            <a className="button" href={href({ name: 'org', id: w.firstOrgId })}>
+            <a className="button" href={href({ name: 'calendar' })} onClick={() => setCurrentOrg(w.firstOrgId!)}>
               Xem lịch sắp tới
             </a>
           )}

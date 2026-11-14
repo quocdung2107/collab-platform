@@ -4,9 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, errorText } from './lib/api';
 import { detectBrowser } from './lib/embeddedBrowser';
 import { useRealtime } from './lib/realtime';
-import { go, href, pendingInvite, useRoute } from './lib/route';
+import { setCurrentOrg, useCurrentOrg } from './lib/currentOrg';
+import { go, href, isTabRoot, pendingInvite, tabOf, useRoute, type Route } from './lib/route';
 import { useLoad } from './lib/useLoad';
 import { signInWithGoogle, signOut, supabase, supabaseConfigured } from './lib/supabase';
+import { CalendarTab } from './pages/Calendar';
+import { Chats } from './pages/Chats';
+import { Groups } from './pages/Groups';
+import { Me } from './pages/Me';
 import { TaskPage } from './pages/Tasks';
 import { EventPage } from './pages/EventPage';
 import { GroupPage } from './pages/GroupPage';
@@ -17,6 +22,8 @@ import { NewEventPage } from './pages/NewEventPage';
 import { OpenInBrowser } from './pages/OpenInBrowser';
 import { OrgPage } from './pages/OrgPage';
 import { Settings } from './pages/Settings';
+import { Icon } from './ui/icons';
+import { initialsOf, LargeHeader, NavHeader, TabBar, TopActions } from './ui/Shell';
 
 export function App() {
   const browser = useMemo(() => detectBrowser(navigator.userAgent), []);
@@ -27,6 +34,7 @@ export function App() {
   const route = useRoute();
   const reloadMe = () => setMeTick((t) => t + 1);
   const meId = me?.user.id;
+  const org = useCurrentOrg(me?.memberships ?? []);
   const counts = useLoad(() => (meId ? api.notificationCounts() : Promise.resolve(null)), [meId]);
   useRealtime(meId ? [`user:${meId}`] : [], counts.reload);
 
@@ -54,7 +62,7 @@ export function App() {
 
   if (!supabaseConfigured) {
     return (
-      <main>
+      <main className="solo">
         <section className="card">
           <h1>Chưa cấu hình</h1>
           <p>Thiếu VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY. Xem apps/web/.env.example và docs/SETUP.md.</p>
@@ -62,17 +70,18 @@ export function App() {
       </main>
     );
   }
-  if (session === undefined) return <main className="center">Đang tải…</main>;
+  if (session === undefined) return <main className="solo center">Đang tải…</main>;
 
   if (!session) {
     return (
-      <main>
+      <main className="solo">
         {browser.embedded ? (
           <OpenInBrowser info={browser} />
         ) : (
-          <section className="card">
+          <section className="card welcome">
+            <img className="brand" src={`${import.meta.env.BASE_URL}icon.svg`} alt="" width={72} height={72} />
             <h1>Collab</h1>
-            <p>Lịch phục vụ, việc cần làm và trò chuyện của hội thánh ở một nơi.</p>
+            <p className="hint">Lịch phục vụ, việc cần làm và trò chuyện của hội thánh ở một nơi.</p>
             {route.name === 'invite' && <p>Bạn được mời tham gia. Đăng nhập để tiếp tục.</p>}
             <button
               className="button primary"
@@ -91,7 +100,7 @@ export function App() {
 
   if (error && !me) {
     return (
-      <main>
+      <main className="solo">
         <section className="card">
           <p className="error">{error}</p>
           <button className="button" onClick={reloadMe}>
@@ -104,33 +113,79 @@ export function App() {
       </main>
     );
   }
-  if (!me) return <main className="center">Đang tải hồ sơ…</main>;
+  if (!me) return <main className="solo center">Đang tải hồ sơ…</main>;
 
   const pendingCount = counts.data?.pendingCount ?? 0;
   const unreadCount = counts.data?.unreadCount ?? 0;
+  const isAdmin = org?.role === 'owner' || org?.role === 'admin';
+  const actions = <TopActions unread={unreadCount} pending={pendingCount} initials={initialsOf(me.user.displayName)} />;
+  const needsOrg = route.name === 'calendar' || route.name === 'chats' || route.name === 'groups';
+  const picker =
+    needsOrg && org ? (
+      me.memberships.length > 1 ? (
+        <label className="org-picker">
+          <span className="sr-only">Tổ chức đang xem</span>
+          <select value={org.orgId} onChange={(e) => setCurrentOrg(e.target.value)}>
+            {me.memberships.map((m) => (
+              <option key={m.orgId} value={m.orgId}>
+                {m.orgName}
+              </option>
+            ))}
+          </select>
+          <Icon name="chevronDown" size={16} />
+        </label>
+      ) : (
+        <span className="org-picker">{org.orgName}</span>
+      )
+    ) : null;
+
   return (
-    <main>
-      <nav className="topbar">
-        <a href={href({ name: 'home' })}>Trang chủ</a>
-        <a href={href({ name: 'inbox' })} className="row">
-          Thông báo
-          {pendingCount > 0 && <span className="badge">{pendingCount} cần bạn</span>}
-          {pendingCount === 0 && unreadCount > 0 && <span className="badge">{unreadCount}</span>}
-        </a>
-        <a href={href({ name: 'settings' })}>Cài đặt</a>
-      </nav>
-      {route.name === 'settings' && <Settings />}
-      {route.name === 'inbox' && <Inbox meId={me.user.id} onCounts={counts.reload} />}
-      {route.name === 'invite' && <InvitePage token={route.token} onJoined={reloadMe} />}
-      {route.name === 'org' && <OrgPage key={route.id} orgId={route.id} meId={me.user.id} onMembershipChanged={reloadMe} />}
-      {route.name === 'group' && <GroupPage key={route.id} groupId={route.id} meId={me.user.id} />}
-      {route.name === 'event' && <EventPage key={route.id} eventId={route.id} meId={me.user.id} />}
-      {route.name === 'task' && <TaskPage key={route.id} taskId={route.id} meId={me.user.id} />}
-      {route.name === 'newevent' && <NewEventPage key={route.id + (route.copy ?? '')} orgId={route.id} copyFrom={route.copy} />}
-      {route.name === 'home' && <Home me={me} onChanged={reloadMe} />}
-      <button className="button small" onClick={() => signOut()}>
-        Đăng xuất
-      </button>
-    </main>
+    <div className="app">
+      {isTabRoot(route) ? (
+        <LargeHeader title={TITLE[route.name]} leading={picker} actions={actions} />
+      ) : (
+        <NavHeader route={route} title={TITLE[route.name]} actions={actions} />
+      )}
+      <main className="content" key={href(route)}>
+        {needsOrg && !org && (
+          <section className="card">
+            <p className="hint">Bạn chưa thuộc tổ chức nào.</p>
+            <a className="button" href={href({ name: 'home' })}>
+              Bắt đầu
+            </a>
+          </section>
+        )}
+        {route.name === 'home' && <Home me={me} onChanged={reloadMe} />}
+        {route.name === 'calendar' && org && <CalendarTab key={org.orgId} orgId={org.orgId} meId={me.user.id} isAdmin={isAdmin} />}
+        {route.name === 'chats' && org && <Chats key={org.orgId} orgId={org.orgId} meId={me.user.id} />}
+        {route.name === 'groups' && org && <Groups key={org.orgId} orgId={org.orgId} meId={me.user.id} isAdmin={isAdmin} />}
+        {route.name === 'me' && <Me me={me} currentOrgId={org?.orgId ?? null} onChanged={reloadMe} />}
+        {route.name === 'settings' && <Settings />}
+        {route.name === 'inbox' && <Inbox meId={me.user.id} onCounts={counts.reload} />}
+        {route.name === 'invite' && <InvitePage token={route.token} onJoined={reloadMe} />}
+        {route.name === 'org' && <OrgPage key={route.id} orgId={route.id} meId={me.user.id} onMembershipChanged={reloadMe} />}
+        {route.name === 'group' && <GroupPage key={route.id} groupId={route.id} meId={me.user.id} />}
+        {route.name === 'event' && <EventPage key={route.id} eventId={route.id} meId={me.user.id} />}
+        {route.name === 'task' && <TaskPage key={route.id} taskId={route.id} meId={me.user.id} />}
+        {route.name === 'newevent' && <NewEventPage key={route.id + (route.copy ?? '')} orgId={route.id} copyFrom={route.copy} />}
+      </main>
+      <TabBar active={tabOf(route)} badges={{ work: pendingCount }} />
+    </div>
   );
 }
+
+const TITLE: Record<Route['name'], string> = {
+  home: 'Việc của tôi',
+  calendar: 'Lịch',
+  chats: 'Chat',
+  groups: 'Nhóm',
+  me: 'Tài khoản',
+  settings: 'Cài đặt thông báo',
+  inbox: 'Thông báo',
+  invite: 'Lời mời',
+  org: 'Tổ chức',
+  group: 'Nhóm',
+  event: 'Buổi',
+  task: 'Việc',
+  newevent: 'Tạo buổi',
+};

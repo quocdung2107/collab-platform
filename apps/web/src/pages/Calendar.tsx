@@ -66,3 +66,10 @@ export function Calendar({ orgId, meId, canCreate }: { orgId: string; meId: stri
     </section>
   );
 }
+
+/** Tab Lịch: người được tạo buổi = quản trị tổ chức hoặc trưởng một nhóm còn hoạt động (như trang tổ chức trước đây). */
+export function CalendarTab({ orgId, meId, isAdmin }: { orgId: string; meId: string; isAdmin: boolean }) {
+  const groups = useLoad(() => api.groups(orgId), [orgId]);
+  const canCreate = isAdmin || (groups.data ?? []).some((g) => g.myRole === 'leader' && !g.archived);
+  return <Calendar orgId={orgId} meId={meId} canCreate={canCreate} />;
+}

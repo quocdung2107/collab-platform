@@ -4,20 +4,17 @@ import { api } from '../lib/api';
 import { useRealtime } from '../lib/realtime';
 import { go, href } from '../lib/route';
 import { useAction, useLoad } from '../lib/useLoad';
-import { Calendar } from './Calendar';
 import { roleLabel } from './Home';
 
+/** Quản lý tổ chức (UX §4.10): thành viên, liên kết mời, rời tổ chức. Lịch và Nhóm nằm ở tab riêng. */
 export function OrgPage({ orgId, meId, onMembershipChanged }: { orgId: string; meId: string; onMembershipChanged: () => void }) {
   const org = useLoad(() => api.org(orgId), [orgId]);
   const members = useLoad(() => api.members(orgId), [orgId]);
   const groups = useLoad(() => api.groups(orgId), [orgId]);
-  const convs = useLoad(() => api.conversations(orgId), [orgId]);
-  const unread = new Map((convs.data ?? []).map((c) => [c.anchor.id, c.unreadCount]));
-  const reload = () => (org.reload(), members.reload(), groups.reload(), convs.reload());
+  const reload = () => (org.reload(), members.reload(), groups.reload());
   useRealtime([`user:${meId}`], () => (reload(), onMembershipChanged()));
 
   const act = useAction();
-  const [groupName, setGroupName] = useState('');
 
   if (org.error) return <NotAvailable />;
   if (!org.data) return <p className="center">Đang tải…</p>;
@@ -28,49 +25,9 @@ export function OrgPage({ orgId, meId, onMembershipChanged }: { orgId: string; m
   return (
     <>
       <section className="card">
-        <a href="#" className="hint">
-          ← Tổ chức của tôi
-        </a>
         <h1>{o.name}</h1>
         <p className="hint">Vai trò của bạn: {roleLabel(o.myRole)}</p>
         {act.error && <p className="error">{act.error}</p>}
-      </section>
-
-      <Calendar orgId={orgId} meId={meId} canCreate={isAdmin || (groups.data ?? []).some((g) => g.myRole === 'leader' && !g.archived)} />
-
-      <section className="card">
-        <h2>Nhóm</h2>
-        <ul className="list">
-          {groups.data?.map((g) => (
-            <li key={g.id}>
-              <span className="row">
-                <a href={href({ name: 'group', id: g.id })}>{g.name}</a>
-                {(unread.get(g.id) ?? 0) > 0 && <span className="badge">{unread.get(g.id)} mới</span>}
-              </span>
-              <span className="hint">
-                {g.memberCount} người{g.myRole ? ` · bạn là ${g.myRole === 'leader' ? 'trưởng nhóm' : 'thành viên'}` : ''}
-              </span>
-            </li>
-          ))}
-          {groups.data?.length === 0 && <li className="hint">Chưa có nhóm.</li>}
-        </ul>
-        {isAdmin && (
-          <form
-            className="row"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void act.run(
-                () => api.createGroup(orgId, groupName),
-                () => (setGroupName(''), groups.reload()),
-              );
-            }}
-          >
-            <input value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="Tên nhóm mới" maxLength={120} required />
-            <button className="button" disabled={act.busy}>
-              Tạo nhóm
-            </button>
-          </form>
-        )}
       </section>
 
       {isAdmin && <Invites orgId={orgId} groups={groups.data?.map((g) => ({ id: g.id, name: g.name })) ?? []} />}
@@ -212,7 +169,7 @@ export function NotAvailable() {
       <h1>Không tìm thấy</h1>
       <p className="hint">Mục này không tồn tại hoặc bạn không còn quyền xem.</p>
       <a className="button" href="#">
-        Về trang chính
+        Về Việc của tôi
       </a>
     </section>
   );

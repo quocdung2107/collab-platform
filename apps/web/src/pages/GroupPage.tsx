@@ -47,9 +47,6 @@ export function GroupPage({ groupId, meId }: { groupId: string; meId: string }) 
       </section>
     )}
     <section className="card">
-      <a href={href({ name: 'org', id: g.orgId })} className="hint">
-        ← {org.data?.name ?? 'Tổ chức'}
-      </a>
       <h1>
         {g.name} {g.archived && <span className="hint">(đã lưu trữ)</span>}
       </h1>
@@ -121,7 +118,7 @@ export function GroupPage({ groupId, meId }: { groupId: string; meId: string }) 
             disabled={act.busy}
             onClick={() =>
               window.confirm(`Lưu trữ nhóm ${g.name}?`) &&
-              void act.run(() => api.archiveGroup(groupId, g.version), () => go({ name: 'org', id: g.orgId }))
+              void act.run(() => api.archiveGroup(groupId, g.version), () => go({ name: 'groups' }))
             }
           >
             Lưu trữ nhóm

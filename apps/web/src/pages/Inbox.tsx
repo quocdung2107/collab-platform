@@ -41,9 +41,6 @@ export function Inbox({ meId, onCounts }: { meId: string; onCounts: () => void }
 
   return (
     <section className="card">
-      <a href={href({ name: 'home' })} className="hint">
-        ← Trang chủ
-      </a>
       <h1>Thông báo</h1>
       <div className="row">
         <label className="row hint">

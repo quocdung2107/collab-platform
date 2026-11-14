@@ -42,9 +42,6 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
   return (
     <>
       <section className="card">
-        <a href={href({ name: 'org', id: e.orgId })} className="hint">
-          ← Lịch
-        </a>
         <h1>
           {e.title} {e.status !== 'published' && <span className="tag">{eventStatusLabel[e.status]}</span>}
         </h1>
@@ -99,7 +96,7 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
               <button
                 className="button small danger"
                 disabled={act.busy}
-                onClick={() => window.confirm('Xoá bản nháp này?') && void act.run(() => api.deleteDraft(eventId, e.version), () => go({ name: 'org', id: e.orgId }))}
+                onClick={() => window.confirm('Xoá bản nháp này?') && void act.run(() => api.deleteDraft(eventId, e.version), () => go({ name: 'calendar' }))}
               >
                 Xoá nháp
               </button>
