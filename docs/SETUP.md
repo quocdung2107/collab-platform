@@ -32,3 +32,17 @@ Các bước này cần chủ dự án làm trên giao diện web; mã nguồn k
 ## 4. Bản web công khai cho thử nghiệm (OD-17, OD-18)
 
 Bật repo → Settings → Pages → Source: **GitHub Actions**. Mỗi lần nhánh `main` thay đổi, workflow `pages.yml` triển khai web tới `https://quocdung2107.github.io/collab-platform/`.
+
+## 5. Triển khai API lên Render (gói miễn phí)
+
+Tệp `render.yaml` ở gốc repo mô tả dịch vụ `collab-api` (Node 22, vùng Singapore, kiểm tra sức khoẻ `/healthz`, tự triển khai khi `main` đổi).
+
+1. Supabase → **Connect** → **Session pooler**: chép chuỗi kết nối (dạng `postgresql://postgres.<ref>:[PASSWORD]@<host>.pooler.supabase.com:5432/postgres`), thay `[PASSWORD]` bằng mật khẩu database, thêm `?sslmode=require&uselibpqcompat=true` vào cuối. Dùng Session pooler vì Render không ra được IPv6 của kết nối trực tiếp.
+2. Render → **New → Blueprint** → chọn repo `collab-platform` → nhập `DATABASE_URL` ở bước trên → **Apply**.
+3. Khi dịch vụ chạy, mở `https://<tên-dịch-vụ>.onrender.com/healthz` phải thấy `{"ok":true}`.
+4. GitHub repo → Settings → Secrets and variables → Actions → **Variables** → thêm `API_URL` = URL Render ở trên (không có `/` cuối). Chạy lại workflow Pages (hoặc chờ lần đẩy kế tiếp lên `main`).
+
+Đánh đổi đã biết:
+- Gói miễn phí ngủ sau ~15 phút không có yêu cầu; yêu cầu đầu tiên sau đó chậm khoảng một phút. Chấp nhận được cho thử nghiệm, không cho vận hành thật.
+- `uselibpqcompat=true&sslmode=require` mã hoá kết nối nhưng không xác minh chứng chỉ máy chủ (chứng chỉ Supabase ký bởi CA riêng). Trước khi chạy thật: tải CA từ Supabase (Database Settings → SSL) và dùng `sslmode=verify-full`.
+- Migration không chạy tự động khi khởi động; áp bằng `pnpm db:migrate` hoặc qua connector Supabase rồi ghi sổ `app.schema_migrations`.

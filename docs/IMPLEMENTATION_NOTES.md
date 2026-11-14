@@ -16,6 +16,7 @@ Các quyết định ở mức triển khai, không thay đổi AD nào trong `d
 | IN-10 | Idempotency-Key lưu ở `app.idempotency_keys` theo (user, key), kèm hash thân yêu cầu; khoá > 24 giờ được dùng lại | EVENT_API_CONTRACTS §4. Cùng khoá khác nội dung → `validation_failed` | Redis/bộ nhớ: mất khi khởi động lại, thêm hạ tầng |
 | IN-11 | Token mời 256 bit base64url, chỉ lưu SHA-256; nhận lời mời khoá dòng `invites` (`FOR UPDATE`) | F1-T1/F1-T2: nhận đồng thời lời mời `max_uses = 1` → đúng một người thành công | Đếm lượt bằng `UPDATE … WHERE used_count < max_uses` không khoá: khó trả lý do lỗi chính xác |
 | IN-12 | Web định tuyến bằng hash (`#org=`, `#group=`, `#invite=`) | Chạy trên GitHub Pages không có rewrite; token mời được giữ qua vòng OAuth bằng localStorage | React Router với history API: cần cấu hình 404 fallback |
+| IN-13 | API thử nghiệm chạy trên Render (gói miễn phí, Singapore) qua `render.yaml`; web Pages lấy URL API từ biến repo `API_URL` | Dung chọn 2026-11-14; Blueprint trong repo nên cấu hình có phiên bản | Fly.io/Railway: cần thẻ thanh toán; Supabase Edge Functions: không chạy Fastify/pg như Node |
 
 ## Chưa làm, có chủ đích
 
