@@ -1,6 +1,11 @@
 /** Hiển thị và nhập giờ theo múi giờ của máy (vi-VN). API luôn nhận/trả ISO UTC. */
 export const dayLabel = (iso: string) => new Date(iso).toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
 export const timeLabel = (iso: string) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+/** "23/11" (vi-VN của một số trình duyệt in "23-11"). */
+export const shortDay = (iso: string) => {
+  const d = new Date(iso);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
 export const rangeLabel = (a: string, b: string) => `${dayLabel(a)} · ${timeLabel(a)}–${timeLabel(b)}`;
 
 /** ISO → giá trị cho <input type="datetime-local"> theo giờ máy. */

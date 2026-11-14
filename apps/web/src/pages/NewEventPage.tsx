@@ -61,9 +61,6 @@ export function NewEventPage({ orgId, copyFrom }: { orgId: string; copyFrom?: st
 
   return (
     <section className="card">
-      <a href={href({ name: 'org', id: orgId })} className="hint">
-        ← Tổ chức
-      </a>
       <h1>{mode === 'copy' ? `Sao chép "${source.data?.title ?? '…'}"` : 'Tạo buổi'}</h1>
       {!copyFrom && (
         <div className="row">

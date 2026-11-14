@@ -5,7 +5,11 @@ import { addMinutes, fromLocalInput, rangeLabel, timeLabel, toLocalInput } from 
 import { useRealtime } from '../lib/realtime';
 import { go, href } from '../lib/route';
 import { useAction, useLoad } from '../lib/useLoad';
-import { ChatPanel } from './ChatPanel';
+import { confirmThen, dialogs } from '../ui/dialogs';
+import { Icon } from '../ui/icons';
+import { Banner, Skeleton } from '../ui/kit';
+import { useSetTitle } from '../ui/title';
+import { ChatLink } from './ChatScreen';
 import { assignmentStatusLabel, eventStatusLabel } from './EventLabels';
 import { NotAvailable } from './OrgPage';
 import { RespondButtons } from './Respond';
@@ -29,81 +33,95 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
     void api.readTarget('event', eventId).catch(() => undefined);
   }, [eventId]);
 
+  useSetTitle(ev.data ? { title: ev.data.title, subtitle: 'Buổi' } : null);
   if (ev.error) return <NotAvailable />;
-  if (!ev.data) return <p className="center">Đang tải…</p>;
+  if (!ev.data) return <Skeleton rows={3} sections={2} />;
   const e = ev.data;
   const isDraft = e.status === 'draft';
+  const cancelled = e.status === 'cancelled';
+  // Băng "Vị trí của bạn" (UX §4.4): mọi vị trí của tôi còn hiệu lực trong buổi đã công bố.
+  const mine =
+    e.status === 'published'
+      ? e.positions.flatMap((p) => p.assignments.filter((a) => a.userId === meId && ['requested', 'reconfirm', 'accepted'].includes(a.status)).map((a) => ({ p, a })))
+      : [];
 
-  // Người có thể nhắc tên trong thread: người phụ trách và người được xếp (máy chủ kiểm lại quyền xem).
-  const people = new Map<string, string>();
-  for (const o of e.owners) people.set(o.userId, o.displayName);
-  for (const p of e.positions) for (const a of p.assignments) if (a.status !== 'draft') people.set(a.userId, a.displayName);
+  type Op = 'edit' | 'copy' | 'template' | 'delete';
+  const more = async () => {
+    const op = await dialogs.choose<Op>({
+      title: e.title,
+      options: [
+        ...(!cancelled ? [{ label: editing ? 'Đóng phần sửa' : 'Sửa thông tin, đổi giờ, huỷ buổi', value: 'edit' as const }] : []),
+        { label: 'Sao chép thành buổi mới', value: 'copy' },
+        { label: 'Lưu làm mẫu', value: 'template' },
+        ...(isDraft ? [{ label: 'Xoá bản nháp', value: 'delete' as const, danger: true }] : []),
+      ],
+    });
+    if (op === 'edit') setEditing((x) => !x);
+    else if (op === 'copy') go({ name: 'newevent', id: e.orgId, copy: e.id });
+    else if (op === 'template') {
+      const name = await dialogs.prompt({ title: 'Lưu làm mẫu', message: 'Mẫu giữ các vị trí và nhóm để dựng buổi sau nhanh hơn.', initial: e.title, required: true, confirmLabel: 'Lưu mẫu', maxLength: 120 });
+      if (name?.trim()) void act.run(() => api.templateFromEvent(eventId, name.trim()), () => setNotice(`Đã lưu mẫu "${name.trim()}".`));
+    } else if (op === 'delete')
+      confirmThen({ title: 'Xoá bản nháp này?', message: 'Chưa ai được báo về buổi này.', confirmLabel: 'Xoá', danger: true }, () =>
+        act.run(() => api.deleteDraft(eventId, e.version), () => go({ name: 'calendar' })),
+      );
+  };
 
   return (
     <>
-      <section className="card">
-        <a href={href({ name: 'org', id: e.orgId })} className="hint">
-          ← Lịch
-        </a>
+      {isDraft && <Banner>Bản nháp, chưa gửi cho ai. Xếp người xong thì bấm Công bố.</Banner>}
+      {cancelled && <Banner tone="danger">Buổi này đã huỷ. Mọi vị trí đã được huỷ và người được xếp đã được báo.</Banner>}
+      <section className="card hero">
         <h1>
-          {e.title} {e.status !== 'published' && <span className="tag">{eventStatusLabel[e.status]}</span>}
+          {e.title} {e.status !== 'published' && <span className={cancelled ? 'tag warn' : 'tag'}>{eventStatusLabel[e.status]}</span>}
         </h1>
-        <p>
-          {rangeLabel(e.startsAt, e.endsAt)}
-          {e.location && <span className="hint"> · {e.location}</span>}
-        </p>
+        <ul className="facts">
+          <li>
+            <Icon name="clock" size={18} />
+            <span>{rangeLabel(e.startsAt, e.endsAt)}</span>
+          </li>
+          {e.location && (
+            <li>
+              <Icon name="pin" size={18} />
+              <span>{e.location}</span>
+            </li>
+          )}
+          <li>
+            <Icon name="user" size={18} />
+            <span>Phụ trách: {e.owners.map((o) => o.displayName).join(', ')}</span>
+          </li>
+          <li>
+            <Icon name="groups" size={18} />
+            <span>
+              {e.groups.length > 0 && <>{e.groups.map((g) => g.name).join(', ')} · </>}
+              {e.visibility === 'org' ? 'cả tổ chức thấy' : 'chỉ nhóm tham gia và người được xếp thấy'}
+            </span>
+          </li>
+        </ul>
         {e.description && <p className="pre">{e.description}</p>}
-        <p className="hint">
-          {e.groups.length > 0 && <>Nhóm: {e.groups.map((g) => g.name).join(', ')} · </>}
-          {e.visibility === 'org' ? 'Cả tổ chức thấy' : 'Chỉ nhóm tham gia và người được xếp thấy'}
-          {' · '}Phụ trách: {e.owners.map((o) => o.displayName).join(', ')}
-        </p>
-        {notice && <p className="hint">{notice}</p>}
+        {notice && <p className="notice">{notice}</p>}
         {act.error && <p className="error">{act.error}</p>}
         {e.canEdit && (
-          <div className="row">
+          <div className="hero-actions">
             {isDraft && (
               <button
-                className="button primary"
+                className="button primary grow"
                 disabled={act.busy}
                 onClick={() =>
-                  window.confirm('Công bố buổi này? Mọi người đã xếp sẽ nhận yêu cầu phục vụ.') &&
-                  void act.run(
-                    () => api.publishEvent(eventId, e.version),
-                    (r) => (setNotice(`Đã công bố. ${r.requestedCount} người nhận yêu cầu phục vụ.`), ev.reload()),
+                  confirmThen({ title: 'Công bố buổi này?', message: 'Mọi người đã xếp sẽ nhận yêu cầu phục vụ.', confirmLabel: 'Công bố' }, () =>
+                    act.run(
+                      () => api.publishEvent(eventId, e.version),
+                      (r) => (setNotice(`Đã công bố. ${r.requestedCount} người nhận yêu cầu phục vụ.`), ev.reload()),
+                    ),
                   )
                 }
               >
                 Công bố
               </button>
             )}
-            {e.status !== 'cancelled' && (
-              <button className="button small" onClick={() => setEditing((x) => !x)}>
-                {editing ? 'Đóng sửa' : 'Sửa thông tin'}
-              </button>
-            )}
-            <a className="button small" href={href({ name: 'newevent', id: e.orgId, copy: e.id })}>
-              Sao chép
-            </a>
-            <button
-              className="button small"
-              disabled={act.busy}
-              onClick={() => {
-                const name = window.prompt('Tên mẫu', e.title);
-                if (name) void act.run(() => api.templateFromEvent(eventId, name), () => setNotice(`Đã lưu mẫu "${name}".`));
-              }}
-            >
-              Lưu làm mẫu
+            <button className="button" onClick={() => void more()}>
+              <Icon name="more" size={18} /> Thao tác
             </button>
-            {isDraft && (
-              <button
-                className="button small danger"
-                disabled={act.busy}
-                onClick={() => window.confirm('Xoá bản nháp này?') && void act.run(() => api.deleteDraft(eventId, e.version), () => go({ name: 'org', id: e.orgId }))}
-              >
-                Xoá nháp
-              </button>
-            )}
           </div>
         )}
         {!isDraft && <Follow eventId={eventId} />}
@@ -112,38 +130,45 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
         {e.canEdit && editing && <Owners e={e} members={members.data ?? []} onChanged={ev.reload} />}
       </section>
 
+      {mine.map(({ p, a }) => (
+        <section key={a.id} className="card mine-banner">
+          <h2>Vị trí của bạn</h2>
+          <div className="row spread">
+            <span className="grid">
+              <strong>{p.name}</strong>
+              <span className="hint">
+                Có mặt {timeLabel(addMinutes(e.startsAt, p.reportOffsetMin))}
+                {p.groupName ? ` · ${p.groupName}` : ''}
+              </span>
+            </span>
+            <span className={a.status === 'accepted' ? 'tag ok' : a.status === 'reconfirm' ? 'tag warn' : 'tag info'}>{assignmentStatusLabel[a.status]}</span>
+          </div>
+          <RespondButtons assignmentId={a.id} status={a.status} onDone={ev.reload} large />
+        </section>
+      ))}
+
+      {e.conversationId && <ChatLink conversationId={e.conversationId} label="Thảo luận về buổi này" />}
+      {isDraft && <p className="hint center">Thảo luận mở khi buổi được công bố.</p>}
+
       <section className="card">
-        <h2>Vị trí phục vụ</h2>
+        <h2>Phân công</h2>
         {e.positions.length === 0 && <p className="hint">Chưa có vị trí.</p>}
         {e.positions.map((p) => (
           <Position key={p.id} p={p} e={e} meId={meId} members={members.data ?? []} onChanged={ev.reload} onWarn={setNotice} />
         ))}
-        {e.canAddPositions && e.status !== 'cancelled' && <AddPosition e={e} onAdded={ev.reload} />}
+        {e.canAddPositions && !cancelled && <AddPosition e={e} onAdded={ev.reload} />}
       </section>
 
       <TaskList
         load={() => api.eventTasks(eventId)}
         deps={[eventId, e.version]}
         realtimeTopics={[`event:${eventId}`]}
-        newTask={e.status !== 'cancelled' && (e.canEdit || e.canAddPositions) ? { scope: { type: 'event', eventId }, members: members.data ?? [], eventStartsAt: e.startsAt } : null}
+        newTask={!cancelled && (e.canEdit || e.canAddPositions) ? { scope: { type: 'event', eventId }, members: members.data ?? [], eventStartsAt: e.startsAt } : null}
       />
 
       {!isDraft && <Related type="event" id={eventId} topic={`event:${eventId}`} canLink={e.canEdit} />}
+      <Files owner="events" id={eventId} orgId={e.orgId} topic={`event:${eventId}`} canAdd={e.canEdit && !cancelled} meId={meId} />
       <History type="event" id={eventId} topic={`event:${eventId}`} />
-      <Files owner="events" id={eventId} orgId={e.orgId} topic={`event:${eventId}`} canAdd={e.canEdit && e.status !== 'cancelled'} meId={meId} />
-
-      {e.conversationId && (
-        <section className="card">
-          <h2>Trao đổi về buổi này</h2>
-          <ChatPanel
-            key={e.conversationId}
-            conversationId={e.conversationId}
-            meId={meId}
-            members={[...people].map(([userId, displayName]) => ({ userId, displayName }))}
-          />
-        </section>
-      )}
-      {isDraft && <p className="hint center">Thread trao đổi mở khi buổi được công bố.</p>}
     </>
   );
 }
@@ -247,8 +272,14 @@ function ChangeEvent({ e, onDone }: { e: EventDto; onDone: (msg: string) => void
       <button
         className="button small danger"
         disabled={act.busy}
-        onClick={() => {
-          const r = window.prompt('Huỷ buổi này? Mọi vị trí sẽ bị huỷ và người được xếp nhận thông báo. Lý do (không bắt buộc):', '');
+        onClick={async () => {
+          const r = await dialogs.prompt({
+            title: 'Huỷ buổi này?',
+            message: 'Mọi vị trí sẽ bị huỷ và người được xếp nhận thông báo.',
+            placeholder: 'Lý do (không bắt buộc)',
+            confirmLabel: 'Huỷ buổi',
+            danger: true,
+          });
           if (r !== null) void act.run(() => api.cancelEvent(e.id, { expectedVersion: e.version, reason: r.trim() || undefined }), () => onDone('Đã huỷ buổi.'));
         }}
       >
@@ -343,8 +374,9 @@ function Position({
               {a.declineReason && <span className="hint"> · “{a.declineReason}”</span>}
             </span>
             <span className="row">
-              <span className="hint">{assignmentStatusLabel[a.status]}</span>
-              {e.status === 'published' && a.userId === meId && <RespondButtons assignmentId={a.id} status={a.status} onDone={onChanged} />}
+              <span className={a.status === 'accepted' ? 'tag ok' : a.status === 'declined' || a.status === 'reconfirm' ? 'tag warn' : a.status === 'requested' ? 'tag info' : 'tag'}>
+                {assignmentStatusLabel[a.status]}
+              </span>
               {editable && e.status === 'published' && a.userId !== meId && (a.status === 'requested' || a.status === 'reconfirm') && (
                 <RespondButtons assignmentId={a.id} status={a.status} onDone={onChanged} onBehalf />
               )}
@@ -353,12 +385,11 @@ function Position({
                   <button
                     className="button small"
                     disabled={act.busy}
-                    onClick={() => {
+                    onClick={async () => {
                       const options = members.filter((m) => !taken.has(m.userId));
-                      const name = window.prompt(`Thay ${a.displayName} bằng ai? Gõ tên:\n${options.map((m) => m.displayName).join(', ')}`);
-                      const pick = options.find((m) => m.displayName.toLowerCase() === name?.trim().toLowerCase());
-                      if (name && !pick) return onWarn(`Không tìm thấy "${name}" trong danh sách.`);
-                      if (pick) void act.run(() => api.replaceAssignment(a.id, pick.userId, a.status), onChanged);
+                      if (options.length === 0) return onWarn('Không còn ai trong tổ chức để thay.');
+                      const pick = await dialogs.choose({ title: `Thay ${a.displayName} ở ${p.name}`, options: options.map((m) => ({ label: m.displayName, value: m.userId })) });
+                      if (pick) void act.run(() => api.replaceAssignment(a.id, pick, a.status), onChanged);
                     }}
                   >
                     Thay
@@ -367,7 +398,11 @@ function Position({
                     <button
                       className="button small danger"
                       disabled={act.busy}
-                      onClick={() => window.confirm(`Gỡ ${a.displayName} khỏi ${p.name}?`) && void act.run(() => api.cancelAssignment(a.id, a.status), onChanged)}
+                      onClick={() =>
+                        confirmThen({ title: `Gỡ ${a.displayName} khỏi ${p.name}?`, message: 'Người này sẽ được báo.', confirmLabel: 'Gỡ', danger: true }, () =>
+                          act.run(() => api.cancelAssignment(a.id, a.status), onChanged),
+                        )
+                      }
                     >
                       Gỡ
                     </button>
@@ -418,9 +453,10 @@ function Position({
           <button
             className="button small"
             disabled={act.busy}
-            onClick={() => {
-              const n = Number(window.prompt('Số người cần', String(p.slots)));
-              if (n > 0 && n !== p.slots) void act.run(() => api.updatePosition(p.id, { expectedVersion: p.version, slots: n }), onChanged);
+            onClick={async () => {
+              const v = await dialogs.prompt({ title: `Số người cần cho ${p.name}`, initial: String(p.slots), inputType: 'number', required: true, confirmLabel: 'Lưu' });
+              const n = Number(v);
+              if (Number.isInteger(n) && n > 0 && n !== p.slots) void act.run(() => api.updatePosition(p.id, { expectedVersion: p.version, slots: n }), onChanged);
             }}
           >
             Đổi số người
@@ -428,7 +464,11 @@ function Position({
           <button
             className="button small danger"
             disabled={act.busy}
-            onClick={() => window.confirm(`Bỏ vị trí ${p.name}?${e.status === 'published' ? ' Người đã xếp sẽ được báo huỷ.' : ''}`) && void act.run(() => api.removePosition(p.id), onChanged)}
+            onClick={() =>
+              confirmThen({ title: `Bỏ vị trí ${p.name}?`, message: e.status === 'published' ? 'Người đã xếp sẽ được báo huỷ.' : undefined, confirmLabel: 'Bỏ vị trí', danger: true }, () =>
+                act.run(() => api.removePosition(p.id), onChanged),
+              )
+            }
           >
             Bỏ vị trí
           </button>

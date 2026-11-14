@@ -1,33 +1,31 @@
 import type { MeResponse } from '@collab/shared';
 import { useState } from 'react';
 import { api } from '../lib/api';
-import { go, href } from '../lib/route';
+import { setCurrentOrg } from '../lib/currentOrg';
+import { go } from '../lib/route';
 import { useAction } from '../lib/useLoad';
 import { Today } from './Today';
 
 const ROLE: Record<string, string> = { owner: 'Chủ sở hữu', admin: 'Quản trị', member: 'Thành viên' };
 export const roleLabel = (r: string) => ROLE[r] ?? r;
 
+/** Tab Việc của tôi (UX §4.1). Chưa thuộc tổ chức nào → hướng dẫn nhận lời mời hoặc tạo tổ chức. */
 export function Home({ me, onChanged }: { me: MeResponse; onChanged: () => void }) {
+  if (me.memberships.length > 0) return <Today meId={me.user.id} />;
+  return (
+    <section className="card">
+      <h2>Xin chào, {me.user.displayName}</h2>
+      <p className="hint">Bạn chưa thuộc tổ chức nào. Hãy mở liên kết mời do người quản lý gửi, hoặc tạo tổ chức mới.</p>
+      <NewOrgForm onCreated={onChanged} />
+    </section>
+  );
+}
+
+export function NewOrgForm({ onCreated }: { onCreated: () => void }) {
   const [name, setName] = useState('');
   const { busy, error, run } = useAction();
   return (
     <>
-    {me.memberships.length > 0 && <Today meId={me.user.id} />}
-    <section className="card">
-      <h1>Xin chào, {me.user.displayName}</h1>
-      {me.memberships.length === 0 ? (
-        <p className="hint">Bạn chưa thuộc tổ chức nào. Hãy mở liên kết mời do người quản lý gửi, hoặc tạo tổ chức mới.</p>
-      ) : (
-        <ul className="list">
-          {me.memberships.map((m) => (
-            <li key={m.orgId}>
-              <a href={href({ name: 'org', id: m.orgId })}>{m.orgName}</a>
-              <span className="hint">{roleLabel(m.role)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
       <form
         className="row"
         onSubmit={(e) => {
@@ -36,7 +34,8 @@ export function Home({ me, onChanged }: { me: MeResponse; onChanged: () => void 
             () => api.createOrg(name),
             (o) => {
               setName('');
-              onChanged();
+              setCurrentOrg(o.id);
+              onCreated();
               go({ name: 'org', id: o.id });
             },
           );
@@ -48,7 +47,6 @@ export function Home({ me, onChanged }: { me: MeResponse; onChanged: () => void 
         </button>
       </form>
       {error && <p className="error">{error}</p>}
-    </section>
     </>
   );
 }

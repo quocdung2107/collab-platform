@@ -1,4 +1,5 @@
 import { api } from '../lib/api';
+import { setCurrentOrg } from '../lib/currentOrg';
 import { go } from '../lib/route';
 import { useAction, useLoad } from '../lib/useLoad';
 
@@ -28,12 +29,13 @@ export function InvitePage({ token, onJoined }: { token: string; onJoined: () =>
                   () => api.acceptInvite(token),
                   (r) => {
                     onJoined();
-                    go(r.groupId ? { name: 'group', id: r.groupId } : { name: 'org', id: r.orgId });
+                    setCurrentOrg(r.orgId);
+                    go(r.groupId ? { name: 'group', id: r.groupId } : { name: 'calendar' });
                   },
                 )
               }
             >
-              {p.alreadyMember ? 'Bạn đã là thành viên — mở tổ chức' : 'Tham gia'}
+              {p.alreadyMember ? 'Bạn đã là thành viên, mở tổ chức' : 'Tham gia'}
             </button>
           )}
         </>
