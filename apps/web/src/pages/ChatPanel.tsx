@@ -74,7 +74,10 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
     void refresh().then((p) => p && setHasMore(p.hasMore));
   }, [refresh]);
   useRealtime([`conversation:${conversationId}`], () => void refresh());
-  useEffect(() => bottom.current?.scrollIntoView({ block: 'end' }), [messages.length, pending.length]);
+  // Thân hàm có ngoặc: Chrome mới trả Promise từ scrollIntoView; effect trả Promise làm React gọi nó như hàm dọn → sập trang (trang trắng).
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ block: 'end' });
+  }, [messages.length, pending.length]);
 
   const updatePending = useCallback(
     (fn: (cur: Pending[]) => Pending[]) =>

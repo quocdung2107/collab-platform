@@ -54,7 +54,9 @@ function Preferences() {
   const prefs = useLoad(() => api.notificationPrefs(), []);
   const [draft, setDraft] = useState<NotificationPrefs | null>(null);
   const act = useAction();
-  useEffect(() => setDraft(prefs.data), [prefs.data]);
+  useEffect(() => {
+    setDraft(prefs.data);
+  }, [prefs.data]);
   if (!draft) return <section className="card">{prefs.error ? <p className="error">{prefs.error}</p> : 'Đang tải…'}</section>;
   const set = (p: Partial<NotificationPrefs>) => setDraft({ ...draft, ...p });
   const dirty = JSON.stringify(draft) !== JSON.stringify(prefs.data);
