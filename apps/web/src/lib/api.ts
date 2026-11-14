@@ -15,6 +15,8 @@ import type {
   OrganizationDto,
   OrgRole,
   CreatedAssignmentDto,
+  AssignmentResultDto,
+  AssignmentStatus,
   CreatedEventDto,
   EventDto,
   EventSummaryDto,
@@ -124,6 +126,12 @@ export const api = {
     request<EventDto>(`/v1/positions/${positionId}`, json('PATCH', body)),
   removePosition: (positionId: string) => request<EventDto>(`/v1/positions/${positionId}`, json('DELETE')),
   assign: (positionId: string, userId: string) => request<CreatedAssignmentDto>(`/v1/positions/${positionId}/assignments`, json('POST', { userId })),
+  respondAssignment: (assignmentId: string, body: { response: 'accept' | 'decline'; reason?: string; expectedStatus?: AssignmentStatus }) =>
+    request<AssignmentResultDto>(`/v1/assignments/${assignmentId}/respond`, json('POST', body)),
+  cancelAssignment: (assignmentId: string, expectedStatus?: AssignmentStatus) =>
+    request<AssignmentResultDto>(`/v1/assignments/${assignmentId}/cancel`, json('POST', { expectedStatus })),
+  replaceAssignment: (assignmentId: string, newUserId: string, expectedStatus?: AssignmentStatus) =>
+    request<CreatedAssignmentDto>(`/v1/assignments/${assignmentId}/replace`, json('POST', { newUserId, expectedStatus })),
   cancelDraftAssignment: (assignmentId: string) => request<EventDto>(`/v1/assignments/${assignmentId}`, json('DELETE')),
 
   templates: (orgId: string) => request<EventTemplateDto[]>(`/v1/organizations/${orgId}/templates`),

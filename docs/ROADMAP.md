@@ -11,13 +11,13 @@ Cập nhật: 2026-11-14. Nguồn tiêu chí: `docs/spec/MVP_ACCEPTANCE_CRITERIA
 | Hạ tầng | API trên Render, web Pages nối API | #6 |
 | S4 | Hội thoại nhóm (F9a) | #8 |
 | S5 | Event, Position, xếp người, mẫu, sao chép, thread Event (F3, F4) | #9 |
-| S6 | Lõi thông báo: hộp thông báo, khử trùng, gộp, Subscription, dòng hệ thống (F11a) | PR S6 |
+| S6 | Lõi thông báo: hộp thông báo, khử trùng, gộp, Subscription, dòng hệ thống (F11a) | #10 |
+| S7 | Trả lời phân công, trả lời hộ, gỡ, thay người; gỡ thành viên huỷ vị trí tương lai (F5, F6, F1-T4) | PR S7 |
 
 ## Thứ tự còn lại
 
 | Lát | Nội dung | Tiêu chí | Phụ thuộc | Ghi chú |
 | --- | --- | --- | --- | --- |
-| S7 | **Trả lời, gỡ, thay người (F5, F6)** | F5-T1..T7; F6-T1..T5 | S6 | Gỡ `TODO(F4–F8)` phần Assignment khi gỡ thành viên (F1-T4) |
 | S8 | **My Workspace (F12)** | F12-T1..T5; E2E-3 | S7 | Màn hình chính của người dùng |
 | S9 | **Dời lịch, đổi địa điểm, huỷ (F7)** | F7-T1..T10 | S7, S8 | Bảng §8.5 của NOTIFICATION_ENGINE |
 | S10 | **Task (F8)** | F8-T1..T8; F7-T3..T5 | S9 | Gỡ `TODO(F4–F8)` phần Task (F1-T5) |

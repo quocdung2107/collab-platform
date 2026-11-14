@@ -78,7 +78,7 @@ describe.skipIf(!TEST_DB_URL)('F11: lõi thông báo', () => {
     expect(await rows(M2, ev.id)).toEqual([expect.objectContaining({ class: 'action_required', items: 1 })]);
     const item = (await inbox(M1)).items.find((n: { target: { id: string } }) => n.target.id === ev.id);
     expect(item.lines).toEqual([expect.stringMatching(/^Bạn được xếp vào Âm thanh/), expect.stringMatching(/^Bạn được xếp vào Máy chiếu/)]);
-    expect(item.pendingAssignmentIds).toHaveLength(2);
+    expect(item.pendingAssignments).toHaveLength(2);
     // N1: AD (actor, owner) không nhận gì về hành động của mình.
     expect(await rows(AD, ev.id)).toHaveLength(0);
   });

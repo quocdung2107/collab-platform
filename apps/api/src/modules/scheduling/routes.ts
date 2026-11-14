@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { runCommand } from '../../http/command.js';
 import { idParam, parse } from '../../http/validate.js';
+import { cancelAssignment, replaceAssignment, respondAssignment } from './assignments.js';
 import { changeOwners, createEvent, deleteDraft, getEvent, listEvents, publishEvent, updateEvent } from './events.js';
 import { cancelDraftAssignment, createAssignment, createPosition, removePosition, updatePosition } from './positions.js';
 import { archiveTemplate, createTemplate, listTemplates, templateFromEvent } from './templates.js';
@@ -53,6 +54,10 @@ const updatePositionBody = z.object({
   reportOffsetMin: positionFields.reportOffsetMin.optional(),
 });
 const assignBody = z.object({ userId: z.uuid() });
+const assignmentStatus = z.enum(['draft', 'requested', 'accepted', 'declined', 'reconfirm', 'cancelled']);
+const respondBody = z.object({ response: z.enum(['accept', 'decline']), reason: z.string().trim().max(500).optional(), expectedStatus: assignmentStatus.optional() });
+const statusBody = z.object({ expectedStatus: assignmentStatus.optional() });
+const replaceBody = z.object({ newUserId: z.uuid(), expectedStatus: assignmentStatus.optional() });
 const listQuery = z.object({ from: instant, to: instant, mine: z.enum(['true', 'false']).optional(), groupId: z.uuid().optional() });
 const definition = z.object({
   durationMin: z.number().int().min(5).max(7 * 24 * 60),
@@ -118,6 +123,17 @@ export async function schedulingRoutes(app: FastifyInstance) {
   );
   app.delete<{ Params: P }>('/v1/assignments/:assignmentId', (req, reply) =>
     runCommand(deps, req, reply, async (ctx) => ({ body: await cancelDraftAssignment(ctx, idParam(req.params.assignmentId)) })),
+  );
+  app.post<{ Params: P }>('/v1/assignments/:assignmentId/respond', (req, reply) =>
+    runCommand(deps, req, reply, async (ctx) => ({ body: await respondAssignment(ctx, idParam(req.params.assignmentId), parse(respondBody, req.body)) })),
+  );
+  app.post<{ Params: P }>('/v1/assignments/:assignmentId/cancel', (req, reply) =>
+    runCommand(deps, req, reply, async (ctx) => ({
+      body: await cancelAssignment(ctx, idParam(req.params.assignmentId), parse(statusBody, req.body).expectedStatus),
+    })),
+  );
+  app.post<{ Params: P }>('/v1/assignments/:assignmentId/replace', (req, reply) =>
+    runCommand(deps, req, reply, async (ctx) => ({ status: 201, body: await replaceAssignment(ctx, idParam(req.params.assignmentId), parse(replaceBody, req.body)) })),
   );
 
   app.get<{ Params: P }>('/v1/organizations/:orgId/templates', (req) => listTemplates(app.db, req.currentUser().id, idParam(req.params.orgId)));

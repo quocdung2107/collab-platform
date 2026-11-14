@@ -88,7 +88,7 @@ export type MessageAction = 'message.edit' | 'message.delete';
 export type EventAction = 'event.view' | 'event.edit';
 export type EventDraftAction = 'event.create';
 export type PositionAction = 'position.manage';
-export type AssignmentAction = 'assignment.view' | 'assignment.view_decline_reason';
+export type AssignmentAction = 'assignment.view' | 'assignment.view_decline_reason' | 'assignment.respond' | 'assignment.manage';
 
 export type OrgAction =
   | 'org.view'
@@ -199,6 +199,14 @@ function canAssignment(actor: ActorContext, action: AssignmentAction, a: Assignm
       return a.status !== 'draft' || manager ? ALLOW : hidden('draft assignment');
     case 'assignment.view_decline_reason':
       return manager || a.userId === actor.userId ? ALLOW : forbidden('restricted field');
+    case 'assignment.respond':
+      // Người được xếp trả lời cho mình; position_manager trả lời hộ (ghi responded_by, T11).
+      if (a.status === 'draft' && !manager) return hidden('draft assignment');
+      return manager || a.userId === actor.userId ? ALLOW : forbidden('requires assignee or position manager');
+    case 'assignment.manage':
+      if (a.status === 'draft' && !manager) return hidden('draft assignment');
+      if (a.position.event.status === 'cancelled') return forbidden('event cancelled');
+      return manager ? ALLOW : forbidden('requires position manager');
   }
 }
 

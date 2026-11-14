@@ -8,6 +8,7 @@ import { useAction, useLoad } from '../lib/useLoad';
 import { ChatPanel } from './ChatPanel';
 import { assignmentStatusLabel, eventStatusLabel } from './EventLabels';
 import { NotAvailable } from './OrgPage';
+import { RespondButtons } from './Respond';
 
 /** Trang buổi (F3, F4): thông tin, vị trí phục vụ, xếp người, thread trao đổi. */
 export function EventPage({ eventId, meId }: { eventId: string; meId: string }) {
@@ -110,7 +111,7 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
         <h2>Vị trí phục vụ</h2>
         {e.positions.length === 0 && <p className="hint">Chưa có vị trí.</p>}
         {e.positions.map((p) => (
-          <Position key={p.id} p={p} e={e} members={members.data ?? []} onChanged={ev.reload} onWarn={setNotice} />
+          <Position key={p.id} p={p} e={e} meId={meId} members={members.data ?? []} onChanged={ev.reload} onWarn={setNotice} />
         ))}
         {e.canAddPositions && e.status !== 'cancelled' && <AddPosition e={e} onAdded={ev.reload} />}
       </section>
@@ -215,12 +216,14 @@ function Owners({ e, members, onChanged }: { e: EventDto; members: MemberDto[]; 
 function Position({
   p,
   e,
+  meId,
   members,
   onChanged,
   onWarn,
 }: {
   p: PositionDto;
   e: EventDto;
+  meId: string;
   members: MemberDto[];
   onChanged: () => void;
   onWarn: (s: string | null) => void;
@@ -228,7 +231,7 @@ function Position({
   const act = useAction();
   const [pick, setPick] = useState('');
   const editable = p.canManage && e.status !== 'cancelled';
-  const taken = new Set(p.assignments.filter((a) => a.status !== 'declined' && a.status !== 'cancelled').map((a) => a.userId));
+  const taken = new Set(p.assignments.filter((a) => a.status !== 'cancelled').map((a) => a.userId));
   return (
     <div className="position">
       <div className="row spread">
@@ -246,10 +249,42 @@ function Position({
           <li key={a.id}>
             <span>
               {a.displayName}
+              {a.userId === meId && ' (bạn)'}
+              {a.respondedBy && a.respondedBy !== a.userId && a.status !== 'requested' && <span className="hint"> · người điều phối trả lời thay</span>}
               {a.declineReason && <span className="hint"> · “{a.declineReason}”</span>}
             </span>
             <span className="row">
               <span className="hint">{assignmentStatusLabel[a.status]}</span>
+              {e.status === 'published' && a.userId === meId && <RespondButtons assignmentId={a.id} status={a.status} onDone={onChanged} />}
+              {editable && e.status === 'published' && a.userId !== meId && (a.status === 'requested' || a.status === 'reconfirm') && (
+                <RespondButtons assignmentId={a.id} status={a.status} onDone={onChanged} onBehalf />
+              )}
+              {editable && e.status === 'published' && ['requested', 'accepted', 'reconfirm', 'declined'].includes(a.status) && (
+                <>
+                  <button
+                    className="button small"
+                    disabled={act.busy}
+                    onClick={() => {
+                      const options = members.filter((m) => !taken.has(m.userId));
+                      const name = window.prompt(`Thay ${a.displayName} bằng ai? Gõ tên:\n${options.map((m) => m.displayName).join(', ')}`);
+                      const pick = options.find((m) => m.displayName.toLowerCase() === name?.trim().toLowerCase());
+                      if (name && !pick) return onWarn(`Không tìm thấy "${name}" trong danh sách.`);
+                      if (pick) void act.run(() => api.replaceAssignment(a.id, pick.userId, a.status), onChanged);
+                    }}
+                  >
+                    Thay
+                  </button>
+                  {a.status !== 'declined' && (
+                    <button
+                      className="button small danger"
+                      disabled={act.busy}
+                      onClick={() => window.confirm(`Gỡ ${a.displayName} khỏi ${p.name}?`) && void act.run(() => api.cancelAssignment(a.id, a.status), onChanged)}
+                    >
+                      Gỡ
+                    </button>
+                  )}
+                </>
+              )}
               {editable && a.status === 'draft' && (
                 <button className="button small danger" disabled={act.busy} onClick={() => void act.run(() => api.cancelDraftAssignment(a.id), onChanged)}>
                   Bỏ

@@ -28,12 +28,14 @@ Các quyết định ở mức triển khai, không thay đổi AD nào trong `d
 | IN-22 | Notifier chạy trong tiến trình API (`NotifierRunner`): gọi ngay sau mỗi lệnh ghi thành công và quét 5 giây/lần; khoá tư vấn Postgres để chỉ một bộ xử lý; mỗi ActivityEvent một giao dịch, sự kiện lỗi được đánh dấu `dispatched_at` và ghi log | Không thêm hạ tầng (hàng đợi, worker riêng); thứ tự `seq` được giữ; một sự kiện lỗi không chặn hàng đợi. Render gói miễn phí ngủ khi không có truy cập → outbox dồn lại và được xử lý khi thức (F11-T15) | Worker riêng: thêm dịch vụ có phí; `pg_notify`: mất tín hiệu khi không ai nghe nên vẫn cần quét |
 | IN-23 | Dòng hệ thống chỉ chiếu sự kiện gốc (sự kiện con `assignment.*` đã được nói gọn trong dòng của gốc); không tính vào số chưa đọc | Publish 20 người không tạo 20 dòng; F9-T9 | Chiếu mọi sự kiện: hội thoại nhiễu |
 | IN-24 | Sự kiện Event/Position/Assignment xảy ra trước `published_at` không sinh thông báo hay dòng hệ thống, kể cả khi notifier xử lý sau khi đã publish | F3 "Sửa bản nháp không báo ai"; notifier chạy bất đồng bộ nên không dựa vào trạng thái lúc xử lý | Lọc theo `status` lúc xử lý: lọt sự kiện nháp nếu publish xảy ra trước khi notifier chạy |
+| IN-25 | Người phụ trách cuối cùng của một Event chưa huỷ rời tổ chức → người thực hiện lệnh gỡ (hoặc chủ sở hữu/quản trị đầu tiên) được thêm làm người phụ trách, phát `event.owner_changed` (con của `member.removed`) | DATA_MODEL §7: Event đã publish luôn có ≥ 1 người phụ trách; đặc tả chưa nói ai nhận thay | Để Event không người phụ trách: mất người nhận "Cần bạn: lấp vị trí" |
+| IN-26 | Trả lời/gỡ trả `{assignmentId, status, event \| null}`; từ chối hoặc bị gỡ làm mất quyền xem (Event `visibility = groups`) → xoá Subscription trên Event và thread, phát `access_changed` | F6-T4; người gọi có thể không còn xem được Event sau lệnh của chính mình | Luôn trả Event: lỗi `not_found` sau một lệnh thành công |
 
 ## Chưa làm, có chủ đích
 
 - Kênh đẩy (deliveries, Preference, giờ yên lặng, debounce, chế độ đẩy của hội thoại): S12. Subscription mất khi mất quyền xem (§6 quy tắc 4): S7/S9.
 - Tệp đính kèm trong tin nhắn: S11.
-- Hệ quả của gỡ thành viên lên Assignment/Task/Event/Subscription/thiết bị đẩy (F1-T4/T5): làm cùng F4–F8, đánh dấu `TODO(F4–F8)` trong `members.ts`.
+- Hệ quả của gỡ thành viên lên Task (`TODO(S10)`) và thiết bị đẩy (`TODO(S12)`) trong `members.ts`; phần lịch đã làm ở S7.
 - Nhắc org admin khi nhóm mất trưởng nhóm cuối cùng: làm cùng F11.
 - S5: huỷ Event, dời lịch, đổi địa điểm, gỡ người khỏi Event đã công bố, nhận/từ chối Assignment → S7/S9. Tín hiệu `access_changed` khi đổi `visibility`/nhóm của Event đã công bố → S9 (`TODO(S9)`).
 - ESLint/Prettier: thêm khi có nhiều người/agent cùng sửa mã.

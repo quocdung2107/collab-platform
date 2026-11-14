@@ -103,7 +103,7 @@ async function render(db: Queryable, userId: string, rows: NRow[]): Promise<Noti
       target,
     };
     if (!(await canView(db, userId, target))) {
-      out.push({ ...base, available: false, title: null, subtitle: null, lines: ['Nội dung không còn khả dụng'], link: null, pendingAssignmentIds: [] });
+      out.push({ ...base, available: false, title: null, subtitle: null, lines: ['Nội dung không còn khả dụng'], link: null, pendingAssignments: [] });
       continue;
     }
     const tz = await L.orgTimezone(n.org_id);
@@ -120,10 +120,24 @@ async function render(db: Queryable, userId: string, rows: NRow[]): Promise<Noti
       subtitle: head.subtitle,
       lines,
       link: head.link,
-      pendingAssignmentIds: mine.filter((i) => i.needs_action && !i.resolved_at && i.object_type === 'assignment').map((i) => i.object_id),
+      pendingAssignments: await pendingAssignments(
+        db,
+        userId,
+        mine.filter((i) => i.needs_action && !i.resolved_at && i.object_type === 'assignment').map((i) => i.object_id),
+      ),
     });
   }
   return out;
+}
+
+/** Trạng thái hiện tại của Assignment còn chờ chính người dùng trả lời (dữ liệu nghiệp vụ thắng, §8.7). */
+async function pendingAssignments(db: Queryable, userId: string, ids: string[]) {
+  if (!ids.length) return [];
+  const r = await db.query<{ id: string; status: 'requested' | 'reconfirm' }>(
+    `select id, status from app.assignments where id = any($1::uuid[]) and user_id = $2 and status in ('requested', 'reconfirm')`,
+    [ids, userId],
+  );
+  return r.rows;
 }
 
 async function heading(db: Queryable, t: Target, tz: string): Promise<{ title: string; subtitle: string | null; link: NotificationDto['link']; startsAt: Date | null }> {

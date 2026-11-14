@@ -91,3 +91,10 @@ export interface EventTemplateDto {
   definition: TemplateDefinition;
   version: number;
 }
+
+/** Kết quả trả lời/gỡ: Event null nếu người gọi không còn xem được (vd. từ chối ở buổi chỉ nhóm thấy). */
+export interface AssignmentResultDto {
+  assignmentId: string;
+  status: AssignmentStatus;
+  event: EventDto | null;
+}

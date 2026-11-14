@@ -18,7 +18,7 @@ export interface NotificationDto {
   lines: string[];
   link: { route: 'event' | 'group' | 'org' | 'task'; id: string } | null;
   /** Assignment còn chờ người nhận trả lời (để nút Nhận/Từ chối ngay trong hộp thông báo). */
-  pendingAssignmentIds: string[];
+  pendingAssignments: Array<{ id: string; status: 'requested' | 'reconfirm' }>;
 }
 
 export interface NotificationCountsDto {
