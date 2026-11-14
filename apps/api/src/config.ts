@@ -7,6 +7,12 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(8080),
   // supabase: realtime.send() trong giao dịch (AD-31). none: bỏ qua (Postgres thường, chạy cục bộ).
   REALTIME_DRIVER: z.enum(['supabase', 'none']).default('supabase'),
+  // Khoá máy chủ Supabase (service_role hoặc sb_secret_…) để Backend cấp URL ký cho Storage (F9b). Thiếu → tệp tắt.
+  SUPABASE_SERVICE_KEY: z.string().min(20).optional(),
+  // Web Push (F11b, AD-25). Thiếu một trong ba → tắt kênh đẩy; hộp thông báo vẫn đầy đủ (N5).
+  VAPID_PUBLIC_KEY: z.string().min(20).optional(),
+  VAPID_PRIVATE_KEY: z.string().min(20).optional(),
+  VAPID_SUBJECT: z.string().regex(/^(mailto:|https:\/\/)/, 'mailto: hoặc https://').optional(),
 });
 
 export interface Config {
@@ -15,6 +21,8 @@ export interface Config {
   webOrigins: string[];
   port: number;
   realtimeDriver: 'supabase' | 'none';
+  supabaseServiceKey: string | null;
+  vapid: { publicKey: string; privateKey: string; subject: string } | null;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -30,5 +38,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webOrigins: e.WEB_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean),
     port: e.PORT,
     realtimeDriver: e.REALTIME_DRIVER,
+    supabaseServiceKey: e.SUPABASE_SERVICE_KEY ?? null,
+    vapid:
+      e.VAPID_PUBLIC_KEY && e.VAPID_PRIVATE_KEY && e.VAPID_SUBJECT
+        ? { publicKey: e.VAPID_PUBLIC_KEY, privateKey: e.VAPID_PRIVATE_KEY, subject: e.VAPID_SUBJECT }
+        : null,
   };
 }

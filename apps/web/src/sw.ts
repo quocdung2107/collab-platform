@@ -10,10 +10,10 @@ self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 interface PushData {
   title?: string;
   body?: string;
+  /** Hash route (vd. "#task=<id>"), ghép vào scope của ứng dụng. */
   url?: string;
-  /** OD-17: id lần gửi để báo nhận và đo độ trễ. */
-  logId?: string;
-  ackUrl?: string;
+  /** Cùng thẻ → thay thông báo cũ (thu gọn chat theo hội thoại, NOTIFICATION_ENGINE §9). */
+  tag?: string;
 }
 
 self.addEventListener('push', (event) => {
@@ -29,25 +29,10 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(data.title ?? 'Collab', {
       body: data.body ?? '',
       icon: 'icon.svg',
-      data: { url: data.url ?? self.registration.scope },
-    }),
+      ...(data.tag ? { tag: data.tag, renotify: true } : {}),
+      data: { url: data.url?.startsWith('#') ? self.registration.scope + data.url : (data.url ?? self.registration.scope) },
+    } as NotificationOptions),
   ];
-  if (data.logId && data.ackUrl) {
-    tasks.push(
-      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) =>
-        fetch(data.ackUrl!, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'ack',
-            logId: data.logId,
-            receivedAt: new Date().toISOString(),
-            appState: wins.some((w) => w.visibilityState === 'visible') ? 'foreground' : wins.length ? 'background' : 'closed',
-          }),
-        }).catch(() => undefined),
-      ),
-    );
-  }
   event.waitUntil(Promise.all(tasks));
 });
 
@@ -57,7 +42,8 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {
       const existing = wins.find((w) => w.url.startsWith(self.registration.scope));
-      return existing ? existing.focus() : self.clients.openWindow(url);
+      // Cửa sổ đang mở → chuyển tới đúng đối tượng (hash route) rồi đưa lên trước.
+      return existing ? existing.navigate(url).then((w) => (w ?? existing).focus()) : self.clients.openWindow(url);
     }),
   );
 });

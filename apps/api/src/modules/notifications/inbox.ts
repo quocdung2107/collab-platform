@@ -1,5 +1,7 @@
 import type { NotificationDto, NotificationPageDto } from '@collab/shared';
-import type { Db, Queryable } from '../../db/pool.js';
+import { withTx, type Db, type Queryable } from '../../db/pool.js';
+import type { RealtimePublisher } from '../realtime/publisher.js';
+import { settle } from './resolve.js';
 import { notFound } from '../../http/validate.js';
 import { CANCEL_REASON, lookup, when } from './lookup.js';
 import type { Target } from './types.js';
@@ -47,6 +49,26 @@ export async function listNotifications(db: Queryable, userId: string, q: { befo
   return { items, ...counts, nextBefore: r.rows.length === q.limit ? r.rows.at(-1)!.updated_at.toISOString() : null };
 }
 
+/** Một bản ghi dựng như trong hộp thông báo (nội dung đẩy dựng lúc gửi, sau kiểm tra quyền xem: §8.6). */
+export async function renderNotification(db: Queryable, userId: string, id: string): Promise<NotificationDto | null> {
+  const r = await db.query<NRow>(
+    `select id, org_id, class, action_state, object_type, object_id, reasons, read_at, created_at, updated_at
+       from app.notifications where id = $1 and user_id = $2`,
+    [id, userId],
+  );
+  return r.rows.length ? (await render(db, userId, r.rows))[0]! : null;
+}
+
+/** "Có gì mới" của My Workspace: lớp direct chưa đọc, mới nhất trước (UX §4.1). */
+export async function unreadDirect(db: Queryable, userId: string, limit: number): Promise<NotificationDto[]> {
+  const r = await db.query<NRow>(
+    `select id, org_id, class, action_state, object_type, object_id, reasons, read_at, created_at, updated_at
+       from app.notifications where user_id = $1 and class = 'direct' and read_at is null order by updated_at desc limit $2`,
+    [userId, limit],
+  );
+  return (await render(db, userId, r.rows)).filter((n) => n.available);
+}
+
 export async function notificationCounts(db: Queryable, userId: string) {
   const c = await db.query<{ unread: number; pending: number }>(
     `select count(*) filter (where read_at is null)::int as unread, count(*) filter (where action_state = 'pending')::int as pending
@@ -70,7 +92,22 @@ export async function markAllRead(db: Db, userId: string) {
 }
 
 /** Mở đối tượng đích → đọc mọi bản ghi của người dùng trỏ tới nó. */
-export async function markTargetRead(db: Db, userId: string, target: { type: string; id: string }) {
+export async function markTargetRead(db: Db, userId: string, target: { type: string; id: string }, rt?: RealtimePublisher) {
+  if (target.type === 'task' && rt) {
+    // Task giao không cần nhận: người nhận mở Task → mục "Cần bạn" thành done (NOTIFICATION_ENGINE §8.7, F8-T2).
+    await withTx(db, async (tx) => {
+      const r = await tx.query<{ notification_id: string }>(
+        `update app.notification_items i set resolved_at = now(), resolution = 'done'
+           from app.notifications n, app.tasks t
+          where n.id = i.notification_id and n.user_id = $1 and i.object_type = 'task' and i.object_id = $2
+            and i.verb = 'task.assigned' and i.needs_action and i.resolved_at is null
+            and t.id = $2 and t.owner_id = $1 and t.acceptance <> 'pending'
+          returning i.notification_id`,
+        [userId, target.id],
+      );
+      await settle(tx, rt, r.rows.map((x) => x.notification_id));
+    });
+  }
   await db.query(`update app.notifications set read_at = now() where user_id = $1 and object_type = $2 and object_id = $3 and read_at is null`, [
     userId,
     target.type,
@@ -160,10 +197,11 @@ async function heading(db: Queryable, t: Target, tz: string): Promise<{ title: s
     }
     case 'message': {
       const c = (await db.query<{ anchor_type: string; anchor_id: string; name: string | null }>(
-        `select c.anchor_type, c.anchor_id, coalesce(g.name, e.title) as name
+        `select c.anchor_type, c.anchor_id, coalesce(g.name, e.title, k.title) as name
            from app.messages m join app.conversations c on c.id = m.conversation_id
            left join app.groups g on g.id = c.anchor_id and c.anchor_type = 'group'
            left join app.events e on e.id = c.anchor_id and c.anchor_type = 'event'
+           left join app.tasks k on k.id = c.anchor_id and c.anchor_type = 'task'
           where m.id = $1`,
         [t.id],
       )).rows[0]!;

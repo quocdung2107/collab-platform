@@ -330,7 +330,7 @@ describe.skipIf(!TEST_DB_URL)('F3/F4: Event, Position, xếp người', () => {
   });
 
   it('RLS realtime: rt.can_view_event (db/supabase/0004) khớp view(event) của Backend', async () => {
-    const sql = readFileSync(new URL('../../../db/supabase/0004_realtime_event.sql', import.meta.url), 'utf8');
+    const sql = readFileSync(new URL('../../../db/supabase/0005_realtime_event_cancelled.sql', import.meta.url), 'utf8');
     const fn = sql.slice(sql.indexOf('create or replace function rt.can_view_event'), sql.indexOf('$$;') + 3);
     await h.db.query('create schema if not exists rt');
     await h.db.query(fn);
