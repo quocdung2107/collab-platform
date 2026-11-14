@@ -8,6 +8,9 @@ import { useAction, useLoad } from '../lib/useLoad';
 import { ChatPanel } from './ChatPanel';
 import { Follow } from './EventPage';
 import { NotAvailable } from './OrgPage';
+import { Related } from './Related';
+import { History } from './History';
+import { Files } from './Files';
 
 export const taskStatusLabel: Record<TaskStatus, string> = { open: 'Chưa làm', in_progress: 'Đang làm', done: 'Xong', cancelled: 'Đã huỷ' };
 const dueText = (iso: string | null) => (iso ? `hạn ${dayLabel(iso)} ${timeLabel(iso)}` : 'không hạn');
@@ -163,6 +166,18 @@ export function TaskPage({ taskId, meId }: { taskId: string; meId: string }) {
           {t.assignedBy && ` · Giao bởi ${t.assignedBy.displayName}`} · Tạo bởi {t.createdBy.displayName}
           {t.collaborators.length > 0 && ` · Cùng làm: ${t.collaborators.map((c) => c.displayName).join(', ')}`}
         </p>
+        {t.source && (
+          <p className="hint">
+            Tạo từ tin nhắn:{' '}
+            {t.source.available && t.source.anchor ? (
+              <a href={href(t.source.anchor.type === 'group' ? { name: 'group', id: t.source.anchor.id } : { name: t.source.anchor.type, id: t.source.anchor.id })}>
+                {t.source.senderName ?? 'Ai đó'} trong {t.source.anchor.name}: "{t.source.excerpt}"
+              </a>
+            ) : (
+              'Tin nhắn gốc không khả dụng'
+            )}
+          </p>
+        )}
         {act.error && <p className="error">{act.error}</p>}
 
         <div className="row">
@@ -235,6 +250,10 @@ export function TaskPage({ taskId, meId }: { taskId: string; meId: string }) {
         {editing && <EditTask t={t} onSaved={() => (setEditing(false), task.reload())} />}
         {(t.can.assign || t.can.collaborators) && <People t={t} members={members.data ?? []} onChanged={task.reload} />}
       </section>
+
+      <Related type="task" id={taskId} topic={`task:${taskId}`} canLink={t.can.edit} />
+      <History type="task" id={taskId} topic={`task:${taskId}`} />
+      <Files owner="tasks" id={taskId} orgId={t.orgId} topic={`task:${taskId}`} canAdd={t.can.flag} meId={meId} />
 
       <section className="card">
         <h2>Trao đổi về việc này</h2>

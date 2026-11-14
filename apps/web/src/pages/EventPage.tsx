@@ -10,6 +10,9 @@ import { assignmentStatusLabel, eventStatusLabel } from './EventLabels';
 import { NotAvailable } from './OrgPage';
 import { RespondButtons } from './Respond';
 import { TaskList } from './Tasks';
+import { Related } from './Related';
+import { History } from './History';
+import { Files } from './Files';
 
 /** Trang buổi (F3, F4): thông tin, vị trí phục vụ, xếp người, thread trao đổi. */
 export function EventPage({ eventId, meId }: { eventId: string; meId: string }) {
@@ -124,6 +127,10 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
         realtimeTopics={[`event:${eventId}`]}
         newTask={e.status !== 'cancelled' && (e.canEdit || e.canAddPositions) ? { scope: { type: 'event', eventId }, members: members.data ?? [], eventStartsAt: e.startsAt } : null}
       />
+
+      {!isDraft && <Related type="event" id={eventId} topic={`event:${eventId}`} canLink={e.canEdit} />}
+      <History type="event" id={eventId} topic={`event:${eventId}`} />
+      <Files owner="events" id={eventId} orgId={e.orgId} topic={`event:${eventId}`} canAdd={e.canEdit && e.status !== 'cancelled'} meId={meId} />
 
       {e.conversationId && (
         <section className="card">

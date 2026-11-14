@@ -21,13 +21,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VITE_BASE: /collab-platform/
-      # Các giá trị dưới đây đều công khai theo thiết kế (khoá publishable, khoá VAPID công khai).
+      # Các giá trị dưới đây đều công khai theo thiết kế (khoá publishable; khoá VAPID công khai lấy từ API).
       VITE_SUPABASE_URL: https://jgdbeutyiwyrgjirakvn.supabase.co
       VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_mQdyFM9SBcALt9LDmulCJg_qFX7xVO1
       # URL API trên Render (công khai). Biến repo API_URL (Settings → Secrets and variables → Actions → Variables) ghi đè nếu có.
       VITE_API_URL: ${{ vars.API_URL || 'https://collab-api-jcwa.onrender.com' }}
-      VITE_PUSH_SPIKE_URL: https://jgdbeutyiwyrgjirakvn.supabase.co/functions/v1/push-spike
-      VITE_VAPID_PUBLIC_KEY: BMViEm2ZCLfBOy_n8gdzjoR2dv_VZc9YOvHsUPl5E9VSH2tmPoOcW2oetdg3JH1Plbqo0KzkzS-0VBF09DVFcOQ
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

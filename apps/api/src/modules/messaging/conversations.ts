@@ -12,6 +12,9 @@ import { viewOrg } from '../identity/organizations.js';
 import { topics } from '../realtime/publisher.js';
 import { EVENT_COLS, eventObjects, type EventRow } from '../scheduling/access.js';
 import { TASK_COLS, taskObjects, type TaskRow } from '../tasks/access.js';
+import { cardsFor, onMessageDeleted, syncMessageRefs, type Ref } from '../links/links.js';
+import { attachToMessage, messageAttachments, type UploadRef } from '../files/attachments.js';
+import { fileStorage } from '../files/storage.js';
 import type { TaskObject } from '../access/can.js';
 
 /**
@@ -195,7 +198,7 @@ interface MessageRow {
   mentions: Array<{ userId: string; displayName: string }>;
 }
 
-const toMessage = (m: MessageRow): MessageDto => ({
+const toMessage = (m: MessageRow): Omit<MessageDto, 'cards' | 'attachments'> => ({
   id: m.id,
   seq: Number(m.seq),
   kind: m.kind,
@@ -211,9 +214,16 @@ const toMessage = (m: MessageRow): MessageDto => ({
   deleted: m.deleted_at !== null,
 });
 
-async function messageById(db: Queryable, id: string) {
+/** Gắn thẻ đối tượng theo quyền người xem (X2). Tin đã xoá: không thẻ references, vẫn có thẻ Task sinh từ tin. */
+async function withCards(db: Queryable, viewerId: string, rows: MessageRow[]): Promise<MessageDto[]> {
+  const ids = rows.filter((m) => m.kind === 'user').map((m) => m.id);
+  const [cards, files] = await Promise.all([cardsFor(db, viewerId, ids), messageAttachments(db, ids)]);
+  return rows.map((m) => ({ ...toMessage(m), cards: cards.get(m.id) ?? [], attachments: files.get(m.id) ?? [] }));
+}
+
+async function messageById(db: Queryable, id: string, viewerId: string) {
   const r = await db.query<MessageRow>(`${MESSAGE_SELECT} where m.id = $1`, [id]);
-  return toMessage(r.rows[0]!);
+  return (await withCards(db, viewerId, r.rows))[0]!;
 }
 
 export async function getMessages(
@@ -239,7 +249,7 @@ export async function getMessages(
   if (order === 'desc') rows.reverse();
   return {
     conversation: await summaryOf(db, userId, conversationId),
-    messages: rows.map(toMessage),
+    messages: await withCards(db, userId, rows),
     hasMore: q.afterSeq === undefined && r.rows.length > q.limit,
   };
 }
@@ -278,6 +288,8 @@ export interface SendInput {
   body: string;
   replyToId?: string;
   mentionIds: string[];
+  refs?: Ref[];
+  attachments?: UploadRef[];
 }
 
 /**
@@ -290,7 +302,7 @@ export async function sendMessage(ctx: CommandCtx, conversationId: string, input
     `select id from app.messages where conversation_id = $1 and sender_id = $2 and client_msg_id = $3`,
     [conversationId, ctx.user.id, input.clientMsgId],
   );
-  if (existing.rows[0]) return { created: false, message: await messageById(ctx.tx, existing.rows[0].id) };
+  if (existing.rows[0]) return { created: false, message: await messageById(ctx.tx, existing.rows[0].id, ctx.user.id) };
 
   assertAllowed(can(actor, 'conversation.post', obj));
   const mentionIds = [...new Set(input.mentionIds)];
@@ -337,9 +349,11 @@ export async function sendMessage(ctx: CommandCtx, conversationId: string, input
       sender_id: ctx.user.id,
       mention_ids: mentionIds,
       reply_to_sender_id: replyToSenderId,
-      has_attachments: false,
+      has_attachments: (input.attachments?.length ?? 0) > 0,
     },
   });
+  if (input.attachments?.length) await attachToMessage(ctx, fileStorage(), conv.org_id, messageId, input.attachments);
+  await syncMessageRefs(ctx, { orgId: conv.org_id, messageId, context: anchorContext(conv), causeId: activityId }, input.refs ?? [], body);
   await ctx.realtime.send(ctx.tx, topics.conversation(conversationId), 'conversation.message', {
     type: 'message',
     id: messageId,
@@ -348,7 +362,7 @@ export async function sendMessage(ctx: CommandCtx, conversationId: string, input
     conversation_id: conversationId,
     seq,
   });
-  return { created: true, message: await messageById(ctx.tx, messageId) };
+  return { created: true, message: await messageById(ctx.tx, messageId, ctx.user.id) };
 }
 
 async function loadMessage(ctx: CommandCtx, messageId: string) {
@@ -372,7 +386,7 @@ async function loadMessage(ctx: CommandCtx, messageId: string) {
 }
 
 /** Sửa tin của mình; mention thêm/bớt ghi vào sự kiện để notifier chỉ báo người mới (F9-T6). */
-export async function editMessage(ctx: CommandCtx, messageId: string, input: { body: string; mentionIds: string[] }) {
+export async function editMessage(ctx: CommandCtx, messageId: string, input: { body: string; mentionIds: string[]; refs?: Ref[] }) {
   const { m, conv, actor, msgObj } = await loadMessage(ctx, messageId);
   assertAllowed(can(actor, 'message.edit', msgObj));
   const mentionIds = [...new Set(input.mentionIds)];
@@ -399,8 +413,9 @@ export async function editMessage(ctx: CommandCtx, messageId: string, input: { b
     context: anchorContext(conv),
     payload: { message_id: messageId, added_mention_ids: added, removed_mention_ids: removed },
   });
+  await syncMessageRefs(ctx, { orgId: conv.org_id, messageId, context: anchorContext(conv), causeId: activityId }, input.refs ?? [], body);
   await signalChanged(ctx, conv.id, messageId, Number(m.seq), 'edited', 'message.edited', activityId);
-  return messageById(ctx.tx, messageId);
+  return messageById(ctx.tx, messageId, ctx.user.id);
 }
 
 /** Xoá tin: nội dung đặt null ngay, mention bị gỡ; dòng giữ lại để seq liền mạch (DATA_MODEL §5, F9-T5). */
@@ -419,8 +434,9 @@ export async function deleteMessage(ctx: CommandCtx, messageId: string) {
     context: anchorContext(conv),
     payload: { message_id: messageId, deleted_by: ctx.user.id },
   });
+  await onMessageDeleted(ctx, messageId, anchorContext(conv), activityId);
   await signalChanged(ctx, conv.id, messageId, Number(m.seq), 'deleted', 'message.deleted', activityId);
-  return messageById(ctx.tx, messageId);
+  return messageById(ctx.tx, messageId, ctx.user.id);
 }
 
 async function signalChanged(

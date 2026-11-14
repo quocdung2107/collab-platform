@@ -49,6 +49,16 @@ export async function listNotifications(db: Queryable, userId: string, q: { befo
   return { items, ...counts, nextBefore: r.rows.length === q.limit ? r.rows.at(-1)!.updated_at.toISOString() : null };
 }
 
+/** Một bản ghi dựng như trong hộp thông báo (nội dung đẩy dựng lúc gửi, sau kiểm tra quyền xem: §8.6). */
+export async function renderNotification(db: Queryable, userId: string, id: string): Promise<NotificationDto | null> {
+  const r = await db.query<NRow>(
+    `select id, org_id, class, action_state, object_type, object_id, reasons, read_at, created_at, updated_at
+       from app.notifications where id = $1 and user_id = $2`,
+    [id, userId],
+  );
+  return r.rows.length ? (await render(db, userId, r.rows))[0]! : null;
+}
+
 /** "Có gì mới" của My Workspace: lớp direct chưa đọc, mới nhất trước (UX §4.1). */
 export async function unreadDirect(db: Queryable, userId: string, limit: number): Promise<NotificationDto[]> {
   const r = await db.query<NRow>(
