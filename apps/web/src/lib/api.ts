@@ -30,6 +30,7 @@ import type {
   TaskSummaryDto,
   RelatedDto,
   AttachmentDto,
+  HistoryEntryDto,
 } from '@collab/shared';
 import { supabase } from './supabase';
 
@@ -134,6 +135,7 @@ export const api = {
   addAttachment: (owner: 'events' | 'tasks', id: string, file: UploadedFile) => request<AttachmentDto>(`/v1/${owner}/${id}/attachments`, json('POST', file, true)),
   removeAttachment: (id: string) => request(`/v1/attachments/${id}`, json('DELETE')),
   related: (type: 'event' | 'task', id: string) => request<RelatedDto>(`/v1/${type}s/${id}/related`),
+  history: (type: 'event' | 'task', id: string) => request<HistoryEntryDto[]>(`/v1/${type}s/${id}/history`),
   linkObjects: (from: { type: 'event' | 'task'; id: string }, to: { type: 'event' | 'task'; id: string }) =>
     request<{ linkId: string }>('/v1/links', json('POST', { from, to }, true)),
   unlink: (linkId: string) => request(`/v1/links/${linkId}`, json('DELETE')),
@@ -183,7 +185,31 @@ export const api = {
   subscription: (type: 'event' | 'task' | 'conversation', id: string) => request<{ mode: SubscriptionMode | null }>(`/v1/subscriptions/${type}/${id}`),
   setSubscription: (type: 'event' | 'task' | 'conversation', id: string, mode: SubscriptionMode | null) =>
     request<{ mode: SubscriptionMode | null }>(`/v1/subscriptions/${type}/${id}`, mode ? json('PUT', { mode }) : json('DELETE')),
+  pushConfig: () => request<{ enabled: boolean; publicKey: string | null }>('/v1/push/config'),
+  pushDevices: () => request<PushDevice[]>('/v1/push/devices'),
+  registerPushDevice: (body: { endpoint: string; keys: { p256dh: string; auth: string }; platform: PushDevice['platform']; installedStandalone: boolean }) =>
+    request<{ id: string }>('/v1/push/devices', json('POST', body)),
+  removePushDevice: (endpoint: string) => request<{ removed: boolean }>('/v1/push/devices/remove', json('POST', { endpoint })),
+  notificationPrefs: () => request<NotificationPrefs>('/v1/me/notification-preferences'),
+  saveNotificationPrefs: (p: NotificationPrefs) => request<NotificationPrefs>('/v1/me/notification-preferences', json('PUT', p)),
 };
+
+export interface PushDevice {
+  id: string;
+  endpoint: string;
+  platform: 'ios' | 'android' | 'desktop' | 'web';
+  installedStandalone: boolean;
+  createdAt: string;
+  lastSeenAt: string;
+}
+
+export interface NotificationPrefs {
+  pushActionRequired: boolean;
+  pushDirect: boolean;
+  quietHoursEnabled: boolean;
+  quietStart: string;
+  quietEnd: string;
+}
 
 export interface UploadedFile {
   key: string;

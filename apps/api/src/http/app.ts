@@ -11,6 +11,9 @@ import { taskRoutes } from '../modules/tasks/routes.js';
 import { linkRoutes } from '../modules/links/routes.js';
 import { fileRoutes } from '../modules/files/routes.js';
 import { setFileStorage, type FileStorage } from '../modules/files/storage.js';
+import { pushRoutes } from '../modules/push/routes.js';
+import { historyRoutes } from '../modules/history/routes.js';
+import { setPushSender, type PushSender } from '../modules/push/sender.js';
 import { provisionUser, type UserRow } from '../modules/identity/users.js';
 import type { RealtimePublisher } from '../modules/realtime/publisher.js';
 import { bearerToken, type TokenVerifier } from './auth.js';
@@ -38,6 +41,8 @@ export interface AppDeps {
   onWrite?: () => void;
   /** Storage cho tệp (F9b); thiếu → tính năng tệp trả lỗi unavailable. */
   storage?: FileStorage;
+  /** Bộ gửi Web Push (F11b); thiếu → không đăng ký thiết bị, không lên lịch delivery. */
+  push?: PushSender;
 }
 
 const PUBLIC_ROUTES = new Set(['/healthz']);
@@ -47,6 +52,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.decorate('db', deps.db);
   app.decorate('realtime', deps.realtime);
   if (deps.storage) setFileStorage(deps.storage);
+  setPushSender(deps.push ?? null);
   app.decorateRequest('user', null);
   app.decorateRequest('currentUser', function (this: { user: UserRow | null }) {
     if (!this.user) throw new AppError('unauthenticated', 'Chưa đăng nhập');
@@ -86,5 +92,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(taskRoutes);
   await app.register(linkRoutes);
   await app.register(fileRoutes);
+  await app.register(pushRoutes);
+  await app.register(historyRoutes);
   return app;
 }

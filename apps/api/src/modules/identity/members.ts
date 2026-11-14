@@ -55,7 +55,8 @@ export async function changeMemberRole(ctx: CommandCtx, orgId: string, targetId:
  * Hệ quả đã có trong lát cắt này: gỡ khỏi mọi Group (sự kiện con group.member_removed), Membership → removed,
  * tín hiệu access_changed (AD-31).
  * Lịch: huỷ Assignment tương lai (member_left), gỡ event_owners, xoá Subscription (S7).
- * Task: bỏ owner Task chưa xong (task.assigned về rỗng), gỡ task_collaborators (S10). TODO(S12): thiết bị đẩy, delivery chưa gửi.
+ * Task: bỏ owner Task chưa xong (task.assigned về rỗng), gỡ task_collaborators (S10). Đẩy (S12): thiết bị gắn người dùng, không gắn tổ chức → giữ;
+ * delivery chưa gửi về đối tượng của tổ chức này bị skipped lúc gửi vì kiểm tra quyền xem (NOTIFICATION_ENGINE §8.6).
  */
 export async function removeMember(ctx: CommandCtx, orgId: string, targetId: string, bySelf: boolean) {
   const { actor } = await viewOrg(ctx.tx, ctx.user.id, orgId, true);
