@@ -232,7 +232,7 @@ describe.skipIf(!TEST_DB_URL)('F11b: đẩy thông báo', () => {
     expect(sentTo(ep)).toEqual([{ endpoint: ep, msg: expect.objectContaining({ title: 'Cần bạn · Buổi 7h' }) }]);
   });
 
-  it('chat §9: nhiều tin → một thông báo thu gọn; người đã đọc/mentions/mute không bị đẩy; mention trong hội thoại mute không đẩy', async () => {
+  it('chat §9 (F9-T3): nhiều tin → một thông báo thu gọn; người đã đọc/mentions/mute không bị đẩy; mention trong hội thoại mute không đẩy', async () => {
     const e2 = await device(M2);
     const e3 = await device(M3);
     const eL = await device(LD);
@@ -261,6 +261,47 @@ describe.skipIf(!TEST_DB_URL)('F11b: đẩy thông báo', () => {
     later(16_000);
     await h.deliver();
     expect((await deliveries(M2)).find((d) => d.kind === 'chat')).toMatchObject({ status: 'skipped', last_error: 'read' });
+  });
+
+  it('F9-T4: hội thoại chế độ mentions → tin thường không đẩy, mention có đẩy; F9-T3: mute → mention không đẩy', async () => {
+    const e3 = await device(M3);
+    const conv = (await M1.call('GET', `/v1/groups/${sound}/conversation`)).body;
+    await M3.call('PUT', `/v1/subscriptions/conversation/${conv.id}`, { mode: 'mentions' });
+    await M1.call('POST', `/v1/conversations/${conv.id}/messages`, { clientMsgId: 'm-f94-plain', body: 'Tin thường' });
+    await M1.call('POST', `/v1/conversations/${conv.id}/messages`, { clientMsgId: 'm-f94-mention', body: '@M3 xem giúp', mentionIds: [M3.id] });
+    await h.dispatch();
+    later(121_000);
+    await h.deliver();
+    expect(sentTo(e3)).toEqual([{ endpoint: e3, msg: expect.objectContaining({ body: 'M1 đã nhắc tới bạn', url: `#group=${sound}` }) }]);
+    // F14-T6: không chứa nội dung tin nhắn.
+    expect(JSON.stringify(sentTo(e3))).not.toContain('xem giúp');
+  });
+
+  it('F14-T6: thông báo đẩy không chứa lý do từ chối', async () => {
+    const eL = await device(LD);
+    const t = await groupTask(LD, { ownerId: M2.id, requiresAcceptance: true });
+    await h.dispatch();
+    await M2.call('POST', `/v1/tasks/${t.id}/respond`, { response: 'decline', reason: 'Đang ốm nặng' });
+    await h.dispatch();
+    later(31_000);
+    await h.deliver();
+    expect(sentTo(eL)).toEqual([{ endpoint: eL, msg: expect.objectContaining({ title: 'Cần bạn · Chuẩn bị micro', body: 'M2 đã từ chối việc: cần giao lại' }) }]);
+    expect(JSON.stringify(sentTo(eL))).not.toContain('ốm');
+  });
+
+  it('F6-T2: giao lại khi đẩy "Cần bạn" còn trong debounce → người cũ không nhận đẩy "Cần bạn", chỉ một "Nên biết"', async () => {
+    const e2 = await device(M2);
+    const t = await groupTask(LD, { ownerId: M2.id });
+    await h.dispatch();
+    later(10_000);
+    await LD.call('POST', `/v1/tasks/${t.id}/assign`, { expectedVersion: t.version, ownerId: M3.id });
+    await h.dispatch();
+    later(25_000);
+    await h.deliver();
+    expect(sentTo(e2)).toEqual([]);
+    later(130_000);
+    await h.deliver();
+    expect(sentTo(e2)).toEqual([{ endpoint: e2, msg: expect.objectContaining({ title: 'Chuẩn bị micro', body: 'Bạn không còn phụ trách việc này' }) }]);
   });
 
   it('F11-T11 (N3): mất quyền xem trước khi gửi → skipped', async () => {

@@ -16,7 +16,6 @@ import { InvitePage } from './pages/InvitePage';
 import { NewEventPage } from './pages/NewEventPage';
 import { OpenInBrowser } from './pages/OpenInBrowser';
 import { OrgPage } from './pages/OrgPage';
-import { PushTest } from './pages/PushTest';
 import { Settings } from './pages/Settings';
 
 export function App() {
@@ -53,21 +52,6 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
-  if (route.name === 'od17') {
-    return (
-      <main>
-        <PushTest />
-      </main>
-    );
-  }
-
-  // Ứng dụng mở từ Màn hình chính không có thanh địa chỉ → cần liên kết tới trang thử OD-17 (bỏ khi xong thử nghiệm).
-  const od17Link = (
-    <a className="hint" href="#od17" onClick={() => setTimeout(() => window.location.reload(), 0)}>
-      Thử thông báo đẩy (OD-17)
-    </a>
-  );
-
   if (!supabaseConfigured) {
     return (
       <main>
@@ -101,7 +85,6 @@ export function App() {
             </button>
           </section>
         )}
-        {od17Link}
       </main>
     );
   }
@@ -118,7 +101,6 @@ export function App() {
             Đăng xuất
           </button>
         </section>
-        {od17Link}
       </main>
     );
   }
@@ -149,7 +131,6 @@ export function App() {
       <button className="button small" onClick={() => signOut()}>
         Đăng xuất
       </button>
-      {od17Link}
     </main>
   );
 }

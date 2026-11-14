@@ -14,9 +14,6 @@ interface PushData {
   url?: string;
   /** Cùng thẻ → thay thông báo cũ (thu gọn chat theo hội thoại, NOTIFICATION_ENGINE §9). */
   tag?: string;
-  /** OD-17: id lần gửi để báo nhận và đo độ trễ. */
-  logId?: string;
-  ackUrl?: string;
 }
 
 self.addEventListener('push', (event) => {
@@ -36,22 +33,6 @@ self.addEventListener('push', (event) => {
       data: { url: data.url?.startsWith('#') ? self.registration.scope + data.url : (data.url ?? self.registration.scope) },
     } as NotificationOptions),
   ];
-  if (data.logId && data.ackUrl) {
-    tasks.push(
-      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) =>
-        fetch(data.ackUrl!, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'ack',
-            logId: data.logId,
-            receivedAt: new Date().toISOString(),
-            appState: wins.some((w) => w.visibilityState === 'visible') ? 'foreground' : wins.length ? 'background' : 'closed',
-          }),
-        }).catch(() => undefined),
-      ),
-    );
-  }
   event.waitUntil(Promise.all(tasks));
 });
 

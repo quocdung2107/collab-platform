@@ -30,6 +30,7 @@ import type {
   TaskSummaryDto,
   RelatedDto,
   AttachmentDto,
+  HistoryEntryDto,
 } from '@collab/shared';
 import { supabase } from './supabase';
 
@@ -134,6 +135,7 @@ export const api = {
   addAttachment: (owner: 'events' | 'tasks', id: string, file: UploadedFile) => request<AttachmentDto>(`/v1/${owner}/${id}/attachments`, json('POST', file, true)),
   removeAttachment: (id: string) => request(`/v1/attachments/${id}`, json('DELETE')),
   related: (type: 'event' | 'task', id: string) => request<RelatedDto>(`/v1/${type}s/${id}/related`),
+  history: (type: 'event' | 'task', id: string) => request<HistoryEntryDto[]>(`/v1/${type}s/${id}/history`),
   linkObjects: (from: { type: 'event' | 'task'; id: string }, to: { type: 'event' | 'task'; id: string }) =>
     request<{ linkId: string }>('/v1/links', json('POST', { from, to }, true)),
   unlink: (linkId: string) => request(`/v1/links/${linkId}`, json('DELETE')),
