@@ -17,6 +17,7 @@ import { NewEventPage } from './pages/NewEventPage';
 import { OpenInBrowser } from './pages/OpenInBrowser';
 import { OrgPage } from './pages/OrgPage';
 import { PushTest } from './pages/PushTest';
+import { Settings } from './pages/Settings';
 
 export function App() {
   const browser = useMemo(() => detectBrowser(navigator.userAgent), []);
@@ -134,7 +135,9 @@ export function App() {
           {pendingCount > 0 && <span className="badge">{pendingCount} cần bạn</span>}
           {pendingCount === 0 && unreadCount > 0 && <span className="badge">{unreadCount}</span>}
         </a>
+        <a href={href({ name: 'settings' })}>Cài đặt</a>
       </nav>
+      {route.name === 'settings' && <Settings />}
       {route.name === 'inbox' && <Inbox meId={me.user.id} onCounts={counts.reload} />}
       {route.name === 'invite' && <InvitePage token={route.token} onJoined={reloadMe} />}
       {route.name === 'org' && <OrgPage key={route.id} orgId={route.id} meId={me.user.id} onMembershipChanged={reloadMe} />}

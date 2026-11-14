@@ -10,6 +10,7 @@ describe('parseRoute', () => {
       { name: 'invite', token: 'Ab_-'.repeat(10) + 'xyz' },
       { name: 'od17' },
       { name: 'inbox' },
+      { name: 'settings' },
       { name: 'event', id: '01a1d7cf-0000-7000-8000-000000000002' },
       { name: 'newevent', id: '01a1d7cf-0000-7000-8000-000000000000' },
       { name: 'newevent', id: '01a1d7cf-0000-7000-8000-000000000000', copy: '01a1d7cf-0000-7000-8000-000000000002' },

@@ -36,7 +36,7 @@ export function deviceId(): string {
   }
 }
 
-function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
+export function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4);
   const raw = atob((base64 + padding).replace(/-/g, '+').replace(/_/g, '/'));
   const out = new Uint8Array(new ArrayBuffer(raw.length));
@@ -55,7 +55,7 @@ async function call(body: Record<string, unknown>) {
   return json;
 }
 
-function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+export function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
   return Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${what}: quá ${ms / 1000} giây không phản hồi`)), ms))]);
 }
 
