@@ -5,6 +5,7 @@ import { go, href } from '../lib/route';
 import { useAction, useLoad } from '../lib/useLoad';
 import { ChatPanel } from './ChatPanel';
 import { NotAvailable } from './OrgPage';
+import { TaskList } from './Tasks';
 
 export function GroupPage({ groupId, meId }: { groupId: string; meId: string }) {
   const group = useLoad(() => api.group(groupId), [groupId]);
@@ -34,6 +35,12 @@ export function GroupPage({ groupId, meId }: { groupId: string; meId: string }) 
         <ChatPanel key={conv.data.id} conversationId={conv.data.id} meId={meId} members={g.members} />
       </section>
     )}
+    <TaskList
+      load={() => api.groupTasks(groupId)}
+      deps={[groupId]}
+      realtimeTopics={[`group:${groupId}`]}
+      newTask={!g.archived && (isMember || isOrgAdmin) ? { scope: { type: 'group', groupId }, members: orgMembers.data ?? [] } : null}
+    />
     {!g.myRole && (
       <section className="card">
         <p className="hint">Chỉ thành viên nhóm đọc được trò chuyện của nhóm.</p>

@@ -9,6 +9,10 @@ import { ChatPanel } from './ChatPanel';
 import { assignmentStatusLabel, eventStatusLabel } from './EventLabels';
 import { NotAvailable } from './OrgPage';
 import { RespondButtons } from './Respond';
+import { TaskList } from './Tasks';
+import { Related } from './Related';
+import { History } from './History';
+import { Files } from './Files';
 
 /** Trang buổi (F3, F4): thông tin, vị trí phục vụ, xếp người, thread trao đổi. */
 export function EventPage({ eventId, meId }: { eventId: string; meId: string }) {
@@ -104,6 +108,7 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
         )}
         {!isDraft && <Follow eventId={eventId} />}
         {editing && e.canEdit && <EditEvent e={e} onSaved={() => (setEditing(false), ev.reload())} />}
+        {editing && e.canEdit && e.status === 'published' && <ChangeEvent e={e} onDone={(msg) => (setEditing(false), setNotice(msg), ev.reload())} />}
         {e.canEdit && editing && <Owners e={e} members={members.data ?? []} onChanged={ev.reload} />}
       </section>
 
@@ -115,6 +120,17 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
         ))}
         {e.canAddPositions && e.status !== 'cancelled' && <AddPosition e={e} onAdded={ev.reload} />}
       </section>
+
+      <TaskList
+        load={() => api.eventTasks(eventId)}
+        deps={[eventId, e.version]}
+        realtimeTopics={[`event:${eventId}`]}
+        newTask={e.status !== 'cancelled' && (e.canEdit || e.canAddPositions) ? { scope: { type: 'event', eventId }, members: members.data ?? [], eventStartsAt: e.startsAt } : null}
+      />
+
+      {!isDraft && <Related type="event" id={eventId} topic={`event:${eventId}`} canLink={e.canEdit} />}
+      <History type="event" id={eventId} topic={`event:${eventId}`} />
+      <Files owner="events" id={eventId} orgId={e.orgId} topic={`event:${eventId}`} canAdd={e.canEdit && e.status !== 'cancelled'} meId={meId} />
 
       {e.conversationId && (
         <section className="card">
@@ -152,7 +168,7 @@ function EditEvent({ e, onSaved }: { e: EventDto; onSaved: () => void }) {
     >
       <input value={title} onChange={(x) => setTitle(x.target.value)} required maxLength={200} />
       <textarea value={description} onChange={(x) => setDescription(x.target.value)} placeholder="Mô tả" rows={3} />
-      {/* Đã công bố: dời giờ/địa điểm phải qua luồng thông báo thay đổi (F7, lát sau). */}
+      {/* Đã công bố: dời giờ/địa điểm đi qua lệnh riêng để báo đúng người (F7). */}
       <input value={location} onChange={(x) => setLocation(x.target.value)} placeholder="Địa điểm" disabled={!isDraft} />
       {isDraft ? (
         <div className="row">
@@ -160,13 +176,86 @@ function EditEvent({ e, onSaved }: { e: EventDto; onSaved: () => void }) {
           <input type="datetime-local" value={endsAt} onChange={(x) => setEndsAt(x.target.value)} />
         </div>
       ) : (
-        <p className="hint">Đổi giờ, địa điểm của buổi đã công bố sẽ có ở bước "Dời lịch" (thông báo cho mọi người).</p>
+        <p className="hint">Đổi giờ, địa điểm hoặc huỷ buổi đã công bố: dùng phần "Thay đổi buổi" bên dưới (người được xếp sẽ được báo).</p>
       )}
       {act.error && <p className="error">{act.error}</p>}
       <button className="button" disabled={act.busy}>
         Lưu
       </button>
     </form>
+  );
+}
+
+/** F7: dời giờ (có thể yêu cầu xác nhận lại), đổi địa điểm, huỷ buổi. */
+function ChangeEvent({ e, onDone }: { e: EventDto; onDone: (msg: string) => void }) {
+  const act = useAction();
+  const [startsAt, setStartsAt] = useState(toLocalInput(e.startsAt));
+  const [endsAt, setEndsAt] = useState(toLocalInput(e.endsAt));
+  const [location, setLocation] = useState(e.location ?? '');
+  const [reason, setReason] = useState('');
+  const durationMin = (new Date(e.endsAt).getTime() - new Date(e.startsAt).getTime()) / 60000;
+  return (
+    <div className="grid">
+      <h2>Thay đổi buổi</h2>
+      <form
+        className="grid"
+        onSubmit={(x) => {
+          x.preventDefault();
+          void act.run(
+            () => api.rescheduleEvent(e.id, { expectedVersion: e.version, startsAt: fromLocalInput(startsAt), endsAt: fromLocalInput(endsAt), reason: reason || undefined }),
+            ({ summary: s }) =>
+              onDone(
+                `Đã dời giờ. ${s.notifiedCount} người được báo` +
+                  (s.reconfirmCount ? `, ${s.reconfirmCount} người cần xác nhận lại` : '') +
+                  (s.tasksShifted ? `, ${s.tasksShifted} việc dời hạn theo buổi` : '') +
+                  (s.tasksAbsoluteDue.length ? `. Việc giữ hạn cố định, xem lại: ${s.tasksAbsoluteDue.map((t) => t.title).join(', ')}` : '') +
+                  '.',
+              ),
+          );
+        }}
+      >
+        <div className="row">
+          <input
+            type="datetime-local"
+            value={startsAt}
+            onChange={(x) => {
+              setStartsAt(x.target.value);
+              // Giữ thời lượng khi đổi giờ bắt đầu.
+              if (x.target.value) setEndsAt(toLocalInput(addMinutes(fromLocalInput(x.target.value), durationMin)));
+            }}
+            required
+          />
+          <input type="datetime-local" value={endsAt} onChange={(x) => setEndsAt(x.target.value)} required />
+        </div>
+        <input value={reason} onChange={(x) => setReason(x.target.value)} placeholder="Lý do (không bắt buộc)" maxLength={500} />
+        <button className="button" disabled={act.busy || (fromLocalInput(startsAt) === e.startsAt && fromLocalInput(endsAt) === e.endsAt)}>
+          Dời giờ
+        </button>
+      </form>
+      <form
+        className="row"
+        onSubmit={(x) => {
+          x.preventDefault();
+          void act.run(() => api.relocateEvent(e.id, { expectedVersion: e.version, location: location.trim() || null }), () => onDone('Đã đổi địa điểm, người được xếp đã được báo.'));
+        }}
+      >
+        <input value={location} onChange={(x) => setLocation(x.target.value)} placeholder="Địa điểm" maxLength={300} />
+        <button className="button small" disabled={act.busy || location.trim() === (e.location ?? '')}>
+          Đổi địa điểm
+        </button>
+      </form>
+      <button
+        className="button small danger"
+        disabled={act.busy}
+        onClick={() => {
+          const r = window.prompt('Huỷ buổi này? Mọi vị trí sẽ bị huỷ và người được xếp nhận thông báo. Lý do (không bắt buộc):', '');
+          if (r !== null) void act.run(() => api.cancelEvent(e.id, { expectedVersion: e.version, reason: r.trim() || undefined }), () => onDone('Đã huỷ buổi.'));
+        }}
+      >
+        Huỷ buổi
+      </button>
+      {act.error && <p className="error">{act.error}</p>}
+    </div>
   );
 }
 
@@ -391,17 +480,17 @@ function AddPosition({ e, onAdded }: { e: EventDto; onAdded: () => void }) {
 }
 
 /** Theo dõi / tắt tiếng (NOTIFICATION_ENGINE §6): tắt tiếng không bỏ thông báo thuộc trách nhiệm của bạn. */
-function Follow({ eventId }: { eventId: string }) {
-  const sub = useLoad(() => api.subscription('event', eventId), [eventId]);
+export function Follow({ eventId, type = 'event', label = 'Thông báo về buổi này:' }: { eventId: string; type?: 'event' | 'task'; label?: string }) {
+  const sub = useLoad(() => api.subscription(type, eventId), [eventId, type]);
   const act = useAction();
   if (!sub.data) return null;
   return (
     <label className="row hint">
-      Thông báo về buổi này:
+      {label}
       <select
         value={sub.data.mode ?? ''}
         disabled={act.busy}
-        onChange={(x) => void act.run(() => api.setSubscription('event', eventId, (x.target.value || null) as 'follow' | 'mute' | null), sub.reload)}
+        onChange={(x) => void act.run(() => api.setSubscription(type, eventId, (x.target.value || null) as 'follow' | 'mute' | null), sub.reload)}
       >
         <option value="">Mặc định</option>
         <option value="follow">Theo dõi mọi cập nhật</option>

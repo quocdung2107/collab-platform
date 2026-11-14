@@ -82,7 +82,8 @@ export interface TemplateDefinition {
   durationMin: number;
   groupIds: string[];
   positions: Array<{ name: string; groupId: string | null; slots: number; reportOffsetMin: number }>;
-  tasks: Array<{ title: string; dueOffsetMin: number }>;
+  /** Task mẫu; dueOffsetMin so với giờ bắt đầu buổi (null = không hạn). */
+  tasks: Array<{ title: string; dueOffsetMin: number | null }>;
 }
 
 export interface EventTemplateDto {

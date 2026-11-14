@@ -1,8 +1,10 @@
 import type { AssignmentDto, CreatedEventDto, EventDto, EventSummaryDto, PositionDto, TemplateDefinition } from '@collab/shared';
 import type { Queryable } from '../../db/pool.js';
 import type { CommandCtx } from '../../http/command.js';
+import { revokeLostViewers } from './lifecycle.js';
 import { AppError } from '../../http/errors.js';
 import { normalizeText } from '../../lib/text.js';
+import { eventTaskSeeds } from './templates.js';
 import { assertAllowed } from '../access/authorize.js';
 import { can, managesPosition, viewsEvent, type ActorContext, type EventObject } from '../access/can.js';
 import { emit } from '../activity/emit.js';
@@ -246,6 +248,7 @@ export async function createEvent(ctx: CommandCtx, orgId: string, input: CreateE
   let seeds: PositionSeed[] = [];
   let templateId: string | null = null;
   let copiedFrom: string | null = null;
+  let taskSeeds: Array<{ title: string; description: string | null; dueOffsetMin: number | null }> = [];
 
   if (input.templateId) {
     const t = await ctx.tx.query<{ id: string; name: string; definition: TemplateDefinition }>(
@@ -259,7 +262,7 @@ export async function createEvent(ctx: CommandCtx, orgId: string, input: CreateE
     durationMin = def.durationMin;
     if (!input.groupIds) groupIds = def.groupIds;
     seeds = def.positions.map((p) => ({ ...p, people: [] }));
-    // TODO(S10): sinh Task mẫu (def.tasks) khi có module Task.
+    taskSeeds = def.tasks.map((t) => ({ title: t.title, description: null, dueOffsetMin: t.dueOffsetMin }));
   } else if (input.copyFromId) {
     const src = await viewEvent(ctx.tx, ctx.user.id, input.copyFromId).catch(() => {
       throw new AppError('validation_failed', 'Buổi nguồn không tồn tại', { fields: { copyFromId: 'not_found' } });
@@ -291,6 +294,7 @@ export async function createEvent(ctx: CommandCtx, orgId: string, input: CreateE
       reportOffsetMin: p.report_offset_min,
       people: people.rows.filter((x) => x.position_id === p.id).map((x) => x.user_id),
     }));
+    taskSeeds = await eventTaskSeeds(ctx.tx, src.row.id, src.row.starts_at);
   }
 
   if (!title) throw new AppError('validation_failed', 'Thiếu tiêu đề', { fields: { title: 'required' } });
@@ -341,6 +345,23 @@ export async function createEvent(ctx: CommandCtx, orgId: string, input: CreateE
     payload: { title, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(), template_id: templateId, copied_from: copiedFrom },
   });
 
+  // Task mẫu / sao chép (F3): không người phụ trách, hạn theo buổi; sự kiện lúc nháp không báo ai (IN-24).
+  for (const t of taskSeeds) {
+    const k = await ctx.tx.query<{ id: string }>(
+      `insert into app.tasks (org_id, scope_type, event_id, title, title_norm, description, created_by, due_at, due_offset_min)
+       values ($1, 'event', $2, $3, $4, $5, $6, $7, $8) returning id`,
+      [orgId, row.id, t.title, normalizeText(t.title), t.description, ctx.user.id, t.dueOffsetMin === null ? null : new Date(startsAt.getTime() + t.dueOffsetMin * 60_000), t.dueOffsetMin],
+    );
+    await emit(ctx, {
+      orgId,
+      verb: 'task.created',
+      object: { type: 'task', id: k.rows[0]!.id },
+      context: { taskId: k.rows[0]!.id, eventId: row.id },
+      causeId: rootId,
+      payload: { title: t.title, scope_type: 'event', event_id: row.id, group_id: null, due_at: null },
+    });
+  }
+
   const activeMembers = new Set(
     (
       await ctx.tx.query<{ user_id: string }>(`select user_id from app.memberships where org_id = $1 and status = 'active'`, [orgId])
@@ -374,7 +395,7 @@ export async function createEvent(ctx: CommandCtx, orgId: string, input: CreateE
   return { event: await eventDetail(ctx.tx, row, obj, actor), warnings };
 }
 
-async function loadForEdit(ctx: CommandCtx, eventId: string, expectedVersion: number) {
+export async function loadForEdit(ctx: CommandCtx, eventId: string, expectedVersion: number) {
   const v = await viewEvent(ctx.tx, ctx.user.id, eventId, true);
   assertAllowed(can(v.actor, 'event.edit', v.obj));
   if (v.row.version !== expectedVersion) {
@@ -392,6 +413,8 @@ export interface UpdateEventInput {
   endsAt?: string;
   groupIds?: string[];
   visibility?: 'org' | 'groups';
+  /** Báo cả người được xếp về thay đổi (NOTIFICATION_ENGINE §5, event.updated). */
+  notifyAssignees?: boolean;
 }
 
 export async function updateEvent(ctx: CommandCtx, eventId: string, input: UpdateEventInput) {
@@ -444,20 +467,22 @@ export async function updateEvent(ctx: CommandCtx, eventId: string, input: Updat
       await ctx.tx.query(`insert into app.event_groups (event_id, group_id, org_id) select $1, unnest($2::uuid[]), $3`, [eventId, groupIds, row.org_id]);
     }
   }
-  await emit(
+  const activityId = await emit(
     ctx,
     {
       orgId: row.org_id,
       verb: 'event.updated',
       object: { type: 'event', id: eventId },
       context: { eventId },
-      payload: { changes, notify_assignees: false },
+      payload: { changes, notify_assignees: Boolean(input.notifyAssignees) },
     },
     row.status === 'draft' ? [] : [topics.event(eventId)],
   );
-  // TODO(S9): đổi visibility/event_groups làm mất quyền xem → access_changed cho người bị ảnh hưởng (AD-31).
   const fresh = u.rows[0]!;
-  return eventDetail(ctx.tx, fresh, (await eventObjects(ctx.tx, [fresh])).get(eventId)!, actor);
+  const freshObj = (await eventObjects(ctx.tx, [fresh])).get(eventId)!;
+  // Đổi visibility/nhóm làm mất quyền xem → xoá Subscription + access_changed (AD-31, §6 quy tắc 4).
+  if (row.status !== 'draft' && (changes.visibility || changes.group_ids)) await revokeLostViewers(ctx, obj, freshObj, activityId);
+  return eventDetail(ctx.tx, fresh, freshObj, actor);
 }
 
 /** Xoá bản nháp: xoá cứng Event, Position, Assignment draft và ActivityEvent của riêng nó (DATA_MODEL §5). */

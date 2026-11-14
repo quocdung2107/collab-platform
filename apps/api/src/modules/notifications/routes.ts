@@ -22,7 +22,7 @@ export async function notificationRoutes(app: FastifyInstance) {
   app.get('/v1/notifications/counts', (req) => notificationCounts(app.db, req.currentUser().id));
   app.post<{ Params: { id: string } }>('/v1/notifications/:id/read', (req) => markNotificationRead(app.db, req.currentUser().id, idParam(req.params.id)));
   app.post('/v1/notifications/read-all', (req) => markAllRead(app.db, req.currentUser().id));
-  app.post('/v1/notifications/read-target', (req) => markTargetRead(app.db, req.currentUser().id, parse(targetBody, req.body)));
+  app.post('/v1/notifications/read-target', (req) => markTargetRead(app.db, req.currentUser().id, parse(targetBody, req.body), app.realtime));
 
   app.get<{ Params: { type: string; id: string } }>('/v1/subscriptions/:type/:id', (req) =>
     getSubscription(app.db, req.currentUser().id, parse(subType, req.params.type) as SubTarget, idParam(req.params.id)),
