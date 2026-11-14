@@ -12,11 +12,13 @@ export type Route =
   /** Tạo Event trong tổ chức id; copy = Event nguồn khi "sao chép buổi trước". */
   | { name: 'newevent'; id: string; copy?: string }
   | { name: 'invite'; token: string }
+  | { name: 'inbox' }
   | { name: 'od17' };
 
 export function parseRoute(hash: string): Route {
   const h = hash.replace(/^#/, '');
   if (h === 'od17') return { name: 'od17' };
+  if (h === 'inbox') return { name: 'inbox' };
   // split('=', 2) của JS bỏ phần sau dấu '=' thứ hai → tách tại dấu '=' đầu tiên.
   const i = h.indexOf('=');
   const [k, v] = i < 0 ? [h, ''] : [h.slice(0, i), h.slice(i + 1)];
@@ -34,7 +36,7 @@ export function parseRoute(hash: string): Route {
 export const href = (r: Route) =>
   r.name === 'newevent'
     ? `#newevent=${r.id}${r.copy ? `&copy=${r.copy}` : ''}`
-    : r.name === 'home' ? '#' : r.name === 'od17' ? '#od17' : r.name === 'invite' ? `#invite=${r.token}` : `#${r.name}=${r.id}`;
+    : r.name === 'home' ? '#' : r.name === 'od17' || r.name === 'inbox' ? `#${r.name}` : r.name === 'invite' ? `#invite=${r.token}` : `#${r.name}=${r.id}`;
 
 export const go = (r: Route) => {
   window.location.hash = href(r);

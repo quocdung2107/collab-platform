@@ -25,6 +25,8 @@ export function useRealtime(topics: string[], onChange: () => void) {
         .on('broadcast', { event: 'activity' }, () => !disposed && cb.current())
         .on('broadcast', { event: 'conversation.message' }, () => !disposed && cb.current())
         .on('broadcast', { event: 'conversation.message_changed' }, () => !disposed && cb.current())
+        .on('broadcast', { event: 'notification.created' }, () => !disposed && cb.current())
+        .on('broadcast', { event: 'notification.updated' }, () => !disposed && cb.current())
         .subscribe(),
     );
     void supabase.auth.getSession().then(({ data }) => data.session && supabase.realtime.setAuth(data.session.access_token));

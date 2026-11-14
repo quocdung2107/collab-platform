@@ -91,7 +91,7 @@ async function summaries(db: Queryable, userId: string, where: string, params: u
     `${CONV_SELECT.replace('select c.id', `select coalesce(s.last_read_seq, 0) as last_read_seq,
             (select count(*)::int from app.messages m
               where m.conversation_id = c.id and m.seq > coalesce(s.last_read_seq, 0)
-                and m.deleted_at is null and m.sender_id is distinct from $1) as unread,
+                and m.deleted_at is null and m.kind = 'user' and m.sender_id is distinct from $1) as unread,
             c.id`)}
        left join app.conversation_states s on s.conversation_id = c.id and s.user_id = $1
       where ${where}
@@ -422,4 +422,55 @@ export async function markRead(ctx: CommandCtx, conversationId: string, seq: num
   const { conv } = await loadConversation(ctx.tx, ctx.user.id, conversationId);
   await markReadUpTo(ctx.tx, conversationId, ctx.user.id, Math.min(seq, Number(conv.last_seq)));
   return summaryOf(ctx.tx, ctx.user.id, conversationId);
+}
+
+/** Đọc được hội thoại không; không → not_found. */
+export const viewConversation = (db: Queryable, userId: string, conversationId: string) => loadConversation(db, userId, conversationId);
+
+/** Người dùng đọc được tin này không (để lọc người nhận thông báo, N3). Không xem được → not_found. */
+export async function viewMessage(db: Queryable, userId: string, messageId: string) {
+  const r = await db.query<{ conversation_id: string }>(`select conversation_id from app.messages where id = $1`, [messageId]);
+  if (!r.rows[0]) throw notFound();
+  return loadConversation(db, userId, r.rows[0].conversation_id);
+}
+
+/** Hội thoại của một anchor, nếu đã có (dòng hệ thống chỉ chiếu vào hội thoại đã tồn tại). */
+export async function conversationOf(db: Queryable, anchorType: 'group' | 'event' | 'task', anchorId: string) {
+  const r = await db.query<{ id: string; read_only: boolean }>(`select id, read_only from app.conversations where anchor_type = $1 and anchor_id = $2`, [
+    anchorType,
+    anchorId,
+  ]);
+  return r.rows[0] ?? null;
+}
+
+/**
+ * Dòng hệ thống (ambient, NOTIFICATION_ENGINE §3): chiếu một ActivityEvent vào hội thoại, đúng một lần
+ * (UNIQUE conversation_id, activity_event_id). Ghi cả vào hội thoại chỉ-đọc. Không đẩy, không tính chưa đọc.
+ */
+export async function appendSystemMessage(
+  tx: Tx,
+  realtime: { send: CommandCtx['realtime']['send'] },
+  conversationId: string,
+  activityId: string,
+  body: string,
+) {
+  const exists = await tx.query(`select 1 from app.messages where conversation_id = $1 and activity_event_id = $2`, [conversationId, activityId]);
+  if (exists.rowCount) return;
+  const c = await tx.query<{ last_seq: string; org_id: string }>(
+    `update app.conversations set last_seq = last_seq + 1, last_message_at = now() where id = $1 returning last_seq, org_id`,
+    [conversationId],
+  );
+  const { last_seq, org_id } = c.rows[0]!;
+  const m = await tx.query<{ id: string }>(
+    `insert into app.messages (org_id, conversation_id, seq, kind, body, activity_event_id) values ($1, $2, $3, 'system', $4, $5) returning id`,
+    [org_id, conversationId, last_seq, body, activityId],
+  );
+  await realtime.send(tx, topics.conversation(conversationId), 'conversation.message', {
+    type: 'message',
+    id: m.rows[0]!.id,
+    verb: 'message.created',
+    activity_id: activityId,
+    conversation_id: conversationId,
+    seq: Number(last_seq),
+  });
 }

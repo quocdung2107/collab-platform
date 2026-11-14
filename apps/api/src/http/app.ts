@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { Db } from '../db/pool.js';
 import { groupRoutes } from '../modules/groups/routes.js';
 import { messagingRoutes } from '../modules/messaging/routes.js';
+import { notificationRoutes } from '../modules/notifications/routes.js';
 import { schedulingRoutes } from '../modules/scheduling/routes.js';
 import { identityRoutes } from '../modules/identity/routes.js';
 import { provisionUser, type UserRow } from '../modules/identity/users.js';
@@ -28,6 +29,8 @@ export interface AppDeps {
   realtime: RealtimePublisher;
   webOrigins: string[];
   logger?: boolean;
+  /** Gọi sau mỗi lệnh ghi thành công để notifier xử lý outbox ngay (không có trong kiểm thử: kiểm thử gọi dispatch tường minh). */
+  onWrite?: () => void;
 }
 
 const PUBLIC_ROUTES = new Set(['/healthz']);
@@ -44,7 +47,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.setErrorHandler(errorHandler);
   await app.register(cors, {
     origin: deps.webOrigins,
-    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE'],
     allowedHeaders: ['Authorization', 'Content-Type', 'Idempotency-Key'],
     exposedHeaders: ['Idempotent-Replayed'],
   });
@@ -55,6 +58,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     req.user = await provisionUser(deps.db, identity);
   });
 
+  if (deps.onWrite) {
+    const onWrite = deps.onWrite;
+    app.addHook('onResponse', async (req, reply) => {
+      if (req.method !== 'GET' && req.method !== 'OPTIONS' && reply.statusCode < 400) onWrite();
+    });
+  }
+
   app.get('/healthz', async () => {
     await deps.db.query('select 1');
     return { ok: true };
@@ -63,5 +73,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(groupRoutes);
   await app.register(messagingRoutes);
   await app.register(schedulingRoutes);
+  await app.register(notificationRoutes);
   return app;
 }

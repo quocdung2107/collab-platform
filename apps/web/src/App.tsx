@@ -3,11 +3,14 @@ import type { Session } from '@supabase/supabase-js';
 import { useEffect, useMemo, useState } from 'react';
 import { api, errorText } from './lib/api';
 import { detectBrowser } from './lib/embeddedBrowser';
-import { go, pendingInvite, useRoute } from './lib/route';
+import { useRealtime } from './lib/realtime';
+import { go, href, pendingInvite, useRoute } from './lib/route';
+import { useLoad } from './lib/useLoad';
 import { signInWithGoogle, signOut, supabase, supabaseConfigured } from './lib/supabase';
 import { EventPage } from './pages/EventPage';
 import { GroupPage } from './pages/GroupPage';
 import { Home } from './pages/Home';
+import { Inbox } from './pages/Inbox';
 import { InvitePage } from './pages/InvitePage';
 import { NewEventPage } from './pages/NewEventPage';
 import { OpenInBrowser } from './pages/OpenInBrowser';
@@ -22,6 +25,9 @@ export function App() {
   const [meTick, setMeTick] = useState(0);
   const route = useRoute();
   const reloadMe = () => setMeTick((t) => t + 1);
+  const meId = me?.user.id;
+  const counts = useLoad(() => (meId ? api.notificationCounts() : Promise.resolve(null)), [meId]);
+  useRealtime(meId ? [`user:${meId}`] : [], counts.reload);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -116,8 +122,19 @@ export function App() {
   }
   if (!me) return <main className="center">Đang tải hồ sơ…</main>;
 
+  const pendingCount = counts.data?.pendingCount ?? 0;
+  const unreadCount = counts.data?.unreadCount ?? 0;
   return (
     <main>
+      <nav className="topbar">
+        <a href={href({ name: 'home' })}>Trang chủ</a>
+        <a href={href({ name: 'inbox' })} className="row">
+          Thông báo
+          {pendingCount > 0 && <span className="badge">{pendingCount} cần bạn</span>}
+          {pendingCount === 0 && unreadCount > 0 && <span className="badge">{unreadCount}</span>}
+        </a>
+      </nav>
+      {route.name === 'inbox' && <Inbox meId={me.user.id} onCounts={counts.reload} />}
       {route.name === 'invite' && <InvitePage token={route.token} onJoined={reloadMe} />}
       {route.name === 'org' && <OrgPage key={route.id} orgId={route.id} meId={me.user.id} onMembershipChanged={reloadMe} />}
       {route.name === 'group' && <GroupPage key={route.id} groupId={route.id} meId={me.user.id} />}

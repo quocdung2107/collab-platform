@@ -42,3 +42,10 @@ textarea { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px so
 .spread { justify-content: space-between; }
 .pre { white-space: pre-wrap; }
 fieldset { border: 1px solid rgb(127 127 127 / 0.3); border-radius: 8px; }
+.msg.system { justify-self: center; background: none; color: var(--muted); font-size: 0.85rem; text-align: center; }
+.msg.system .meta { display: none; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.notif { align-items: flex-start; }
+.notif.unread { border-left: 3px solid var(--primary); padding-left: 8px; }
+.notif-body { display: grid; gap: 2px; text-align: left; color: var(--fg); flex: 1; }
+.notif-line { font-size: 0.9rem; }

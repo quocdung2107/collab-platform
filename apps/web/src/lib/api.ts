@@ -20,6 +20,9 @@ import type {
   EventSummaryDto,
   EventTemplateDto,
   EventVisibility,
+  NotificationCountsDto,
+  NotificationPageDto,
+  SubscriptionMode,
 } from '@collab/shared';
 import { supabase } from './supabase';
 
@@ -126,6 +129,18 @@ export const api = {
   templates: (orgId: string) => request<EventTemplateDto[]>(`/v1/organizations/${orgId}/templates`),
   templateFromEvent: (eventId: string, name: string) => request<EventTemplateDto>(`/v1/events/${eventId}/template`, json('POST', { name }, true)),
   archiveTemplate: (templateId: string) => request(`/v1/templates/${templateId}/archive`, json('POST')),
+
+  notifications: (q: { before?: string; pending?: boolean } = {}) =>
+    request<NotificationPageDto>(`/v1/notifications?${new URLSearchParams({ ...(q.before ? { before: q.before } : {}), ...(q.pending ? { pending: 'true' } : {}) })}`),
+  notificationCounts: () => request<NotificationCountsDto>('/v1/notifications/counts'),
+  readNotification: (id: string) => request<NotificationCountsDto>(`/v1/notifications/${id}/read`, json('POST')),
+  readAllNotifications: () => request<NotificationCountsDto>('/v1/notifications/read-all', json('POST')),
+  /** Mở đối tượng → mọi thông báo trỏ tới nó thành đã đọc (NOTIFICATION_ENGINE §8.7). */
+  readTarget: (type: 'event' | 'group' | 'organization' | 'task' | 'message', id: string) =>
+    request<NotificationCountsDto>('/v1/notifications/read-target', json('POST', { type, id })),
+  subscription: (type: 'event' | 'task' | 'conversation', id: string) => request<{ mode: SubscriptionMode | null }>(`/v1/subscriptions/${type}/${id}`),
+  setSubscription: (type: 'event' | 'task' | 'conversation', id: string, mode: SubscriptionMode | null) =>
+    request<{ mode: SubscriptionMode | null }>(`/v1/subscriptions/${type}/${id}`, mode ? json('PUT', { mode }) : json('DELETE')),
 };
 
 export interface EventPatch {

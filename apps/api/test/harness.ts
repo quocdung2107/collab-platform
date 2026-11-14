@@ -2,6 +2,7 @@ import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose';
 import type { Db } from '../src/db/pool.js';
 import { buildApp } from '../src/http/app.js';
 import { supabaseVerifier } from '../src/http/auth.js';
+import { dispatchPending } from '../src/modules/notifications/notifier.js';
 import { MemoryRealtime } from '../src/modules/realtime/publisher.js';
 import { freshDb } from './db.js';
 
@@ -33,7 +34,7 @@ export async function createHarness() {
   /** Một người dùng thử; lần gọi đầu tạo users nội bộ qua /v1/me. */
   async function user(name: string) {
     const token = await sign({ sub: `sub-${name}`, email: `${name.toLowerCase()}@example.com`, user_metadata: { full_name: name } });
-    const call = async (method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, body?: unknown, headers: Record<string, string> = {}) => {
+    const call = async (method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE', url: string, body?: unknown, headers: Record<string, string> = {}) => {
       const r = await app.inject({ method, url, payload: body as object | undefined, headers: { authorization: `Bearer ${token}`, ...headers } });
       return { status: r.statusCode, body: r.body ? (r.json() as any) : null, headers: r.headers };
     };
@@ -41,7 +42,15 @@ export async function createHarness() {
     return { name, id: me.body.user.id as string, token, call };
   }
 
-  return { app, db, realtime, sign, user, close: async () => (await app.close(), await db.end()) };
+  /** Chạy notifier tới khi outbox rỗng; lỗi xử lý sự kiện làm kiểm thử thất bại. */
+  const dispatch = () =>
+    dispatchPending(db, realtime, {
+      onError: (e) => {
+        throw e;
+      },
+    });
+
+  return { app, db, realtime, sign, user, dispatch, close: async () => (await app.close(), await db.end()) };
 }
 
 export type Harness = Awaited<ReturnType<typeof createHarness>>;

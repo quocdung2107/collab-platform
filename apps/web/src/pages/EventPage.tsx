@@ -1,5 +1,5 @@
 import type { EventDto, MemberDto, PositionDto } from '@collab/shared';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, type EventPatch } from '../lib/api';
 import { addMinutes, fromLocalInput, rangeLabel, timeLabel, toLocalInput } from '../lib/datetime';
 import { useRealtime } from '../lib/realtime';
@@ -19,6 +19,10 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
   const act = useAction();
   const [editing, setEditing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  // Mở buổi → các thông báo về buổi này thành đã đọc ("Cần bạn" vẫn chờ tới khi trả lời).
+  useEffect(() => {
+    void api.readTarget('event', eventId).catch(() => undefined);
+  }, [eventId]);
 
   if (ev.error) return <NotAvailable />;
   if (!ev.data) return <p className="center">Đang tải…</p>;
@@ -97,6 +101,7 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
             )}
           </div>
         )}
+        {!isDraft && <Follow eventId={eventId} />}
         {editing && e.canEdit && <EditEvent e={e} onSaved={() => (setEditing(false), ev.reload())} />}
         {e.canEdit && editing && <Owners e={e} members={members.data ?? []} onChanged={ev.reload} />}
       </section>
@@ -347,5 +352,26 @@ function AddPosition({ e, onAdded }: { e: EventDto; onAdded: () => void }) {
         Thêm vị trí
       </button>
     </form>
+  );
+}
+
+/** Theo dõi / tắt tiếng (NOTIFICATION_ENGINE §6): tắt tiếng không bỏ thông báo thuộc trách nhiệm của bạn. */
+function Follow({ eventId }: { eventId: string }) {
+  const sub = useLoad(() => api.subscription('event', eventId), [eventId]);
+  const act = useAction();
+  if (!sub.data) return null;
+  return (
+    <label className="row hint">
+      Thông báo về buổi này:
+      <select
+        value={sub.data.mode ?? ''}
+        disabled={act.busy}
+        onChange={(x) => void act.run(() => api.setSubscription('event', eventId, (x.target.value || null) as 'follow' | 'mute' | null), sub.reload)}
+      >
+        <option value="">Mặc định</option>
+        <option value="follow">Theo dõi mọi cập nhật</option>
+        <option value="mute">Tắt tiếng (vẫn nhận việc cần bạn)</option>
+      </select>
+    </label>
   );
 }

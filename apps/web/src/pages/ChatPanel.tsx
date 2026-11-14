@@ -180,7 +180,7 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
         {messages.map((m) => {
           const mine = m.senderId === meId;
           return (
-            <li key={m.id} className={mine ? 'msg mine' : 'msg'}>
+            <li key={m.id} className={m.kind === 'system' ? 'msg system' : mine ? 'msg mine' : 'msg'}>
               <div className="meta">
                 <strong>{m.kind === 'system' ? 'Hệ thống' : m.senderName}</strong> <span className="hint">{time(m.createdAt)}</span>
                 {m.editedAt && !m.deleted && <span className="hint"> · đã sửa</span>}

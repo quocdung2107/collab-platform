@@ -24,10 +24,14 @@ Các quyết định ở mức triển khai, không thay đổi AD nào trong `d
 | IN-18 | Quyền xem Event viết hai lần: `viewsEvent()` trong `can.ts` và `rt.can_view_event()` (`db/supabase/0004_realtime_event.sql`) cho kênh `event:{id}` và hội thoại Event; một bài kiểm thử so khớp hai bên trên cùng dữ liệu | AD-31: RLS realtime là lớp thứ hai, không được lỏng hơn Backend | Không cho kênh `event:` (chỉ `user:`): người xem Event không thấy thay đổi tức thời |
 | IN-19 | Event đã công bố: PATCH không đổi `starts_at/ends_at/location` (`invalid_transition`); giao diện khoá ô | Dời lịch/đổi địa điểm cần `event.rescheduled`/`event.relocated` + xác nhận lại (F7, S9) | Cho sửa thẳng: người được xếp không được báo |
 | IN-20 | Mẫu Event lưu `definition jsonb` (thời lượng, nhóm, Position, Task); tạo từ mẫu bỏ nhóm đã lưu trữ và trả `warnings[archived_group_skipped]`; Task trong mẫu bỏ qua tới S10 | F3-T6; định nghĩa mẫu không cần truy vấn quan hệ | Bảng con cho từng phần mẫu: nhiều bảng cho dữ liệu ít đọc |
+| IN-21 | `notification_items.resolution` (`done`/`superseded`) thêm so với DATA_MODEL §3.7 | Bản ghi nhiều mục chỉ rời `pending` khi mọi mục đã giải quyết; cần biết kết cục là `done` hay `superseded` (§8.7) mà không suy ngược từ dữ liệu nghiệp vụ | Suy từ trạng thái Assignment/Task lúc kết thúc: sai khi đối tượng đổi tiếp |
+| IN-22 | Notifier chạy trong tiến trình API (`NotifierRunner`): gọi ngay sau mỗi lệnh ghi thành công và quét 5 giây/lần; khoá tư vấn Postgres để chỉ một bộ xử lý; mỗi ActivityEvent một giao dịch, sự kiện lỗi được đánh dấu `dispatched_at` và ghi log | Không thêm hạ tầng (hàng đợi, worker riêng); thứ tự `seq` được giữ; một sự kiện lỗi không chặn hàng đợi. Render gói miễn phí ngủ khi không có truy cập → outbox dồn lại và được xử lý khi thức (F11-T15) | Worker riêng: thêm dịch vụ có phí; `pg_notify`: mất tín hiệu khi không ai nghe nên vẫn cần quét |
+| IN-23 | Dòng hệ thống chỉ chiếu sự kiện gốc (sự kiện con `assignment.*` đã được nói gọn trong dòng của gốc); không tính vào số chưa đọc | Publish 20 người không tạo 20 dòng; F9-T9 | Chiếu mọi sự kiện: hội thoại nhiễu |
+| IN-24 | Sự kiện Event/Position/Assignment xảy ra trước `published_at` không sinh thông báo hay dòng hệ thống, kể cả khi notifier xử lý sau khi đã publish | F3 "Sửa bản nháp không báo ai"; notifier chạy bất đồng bộ nên không dựa vào trạng thái lúc xử lý | Lọc theo `status` lúc xử lý: lọt sự kiện nháp nếu publish xảy ra trước khi notifier chạy |
 
 ## Chưa làm, có chủ đích
 
-- Tin `system` (chiếu ActivityEvent vào hội thoại, F9-T9) và thông báo mention (F9-T3/T4/T6): làm cùng lõi thông báo S6.
+- Kênh đẩy (deliveries, Preference, giờ yên lặng, debounce, chế độ đẩy của hội thoại): S12. Subscription mất khi mất quyền xem (§6 quy tắc 4): S7/S9.
 - Tệp đính kèm trong tin nhắn: S11.
 - Hệ quả của gỡ thành viên lên Assignment/Task/Event/Subscription/thiết bị đẩy (F1-T4/T5): làm cùng F4–F8, đánh dấu `TODO(F4–F8)` trong `members.ts`.
 - Nhắc org admin khi nhóm mất trưởng nhóm cuối cùng: làm cùng F11.
