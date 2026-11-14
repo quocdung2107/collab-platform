@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import { useRealtime } from '../lib/realtime';
 import { go, href } from '../lib/route';
 import { useAction, useLoad } from '../lib/useLoad';
+import { ChatPanel } from './ChatPanel';
 import { NotAvailable } from './OrgPage';
 
 export function GroupPage({ groupId, meId }: { groupId: string; meId: string }) {
@@ -13,6 +14,9 @@ export function GroupPage({ groupId, meId }: { groupId: string; meId: string }) 
   useRealtime([`user:${meId}`, `group:${groupId}`], group.reload);
   const act = useAction();
   const [pick, setPick] = useState('');
+  const isMember = Boolean(group.data?.myRole);
+  // AD-11: chỉ thành viên nhóm đọc hội thoại nhóm (kể cả org admin).
+  const conv = useLoad(() => (isMember ? api.groupConversation(groupId) : Promise.resolve(null)), [groupId, isMember]);
 
   if (group.error) return <NotAvailable />;
   if (!group.data) return <p className="center">Đang tải…</p>;
@@ -23,6 +27,18 @@ export function GroupPage({ groupId, meId }: { groupId: string; meId: string }) 
   const candidates = (orgMembers.data ?? []).filter((m) => !inGroup.has(m.userId));
 
   return (
+    <>
+    {conv.data && (
+      <section className="card">
+        <h2>Trò chuyện nhóm</h2>
+        <ChatPanel key={conv.data.id} conversationId={conv.data.id} meId={meId} members={g.members} />
+      </section>
+    )}
+    {!g.myRole && (
+      <section className="card">
+        <p className="hint">Chỉ thành viên nhóm đọc được trò chuyện của nhóm.</p>
+      </section>
+    )}
     <section className="card">
       <a href={href({ name: 'org', id: g.orgId })} className="hint">
         ← {org.data?.name ?? 'Tổ chức'}
@@ -106,5 +122,6 @@ export function GroupPage({ groupId, meId }: { groupId: string; meId: string }) 
         )}
       </div>
     </section>
+    </>
   );
 }

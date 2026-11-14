@@ -1,0 +1,287 @@
+import type { ConversationSummaryDto, GroupMemberDto, MessageDto } from '@collab/shared';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api, ApiError, errorText } from '../lib/api';
+import { useRealtime } from '../lib/realtime';
+
+interface Pending {
+  clientMsgId: string;
+  body: string;
+  replyToId?: string;
+  mentionIds: string[];
+  failed: boolean;
+}
+
+/** Tin chưa gửi được giữ ở máy (F9-T7) và gửi lại cùng clientMsgId nên không trùng (F9-T1). */
+const pendingStore = {
+  key: (id: string) => `collab.pending.${id}`,
+  load(id: string): Pending[] {
+    try {
+      return JSON.parse(localStorage.getItem(this.key(id)) ?? '[]') as Pending[];
+    } catch {
+      return [];
+    }
+  },
+  save(id: string, list: Pending[]) {
+    try {
+      if (list.length) localStorage.setItem(this.key(id), JSON.stringify(list));
+      else localStorage.removeItem(this.key(id));
+    } catch {
+      /* bộ nhớ bị chặn: tin chờ chỉ sống trong phiên */
+    }
+  },
+};
+
+const time = (iso: string) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+export function ChatPanel({ conversationId, meId, members }: { conversationId: string; meId: string; members: GroupMemberDto[] }) {
+  const [conv, setConv] = useState<ConversationSummaryDto | null>(null);
+  const [messages, setMessages] = useState<MessageDto[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [pending, setPending] = useState<Pending[]>(() => pendingStore.load(conversationId));
+  const [text, setText] = useState('');
+  const [mentions, setMentions] = useState<Array<{ id: string; name: string }>>([]);
+  const [replyTo, setReplyTo] = useState<MessageDto | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const bottom = useRef<HTMLDivElement>(null);
+  const sending = useRef(false);
+
+  const merge = useCallback((incoming: MessageDto[]) => {
+    setMessages((cur) => {
+      const byId = new Map(cur.map((m) => [m.id, m]));
+      for (const m of incoming) byId.set(m.id, m);
+      return [...byId.values()].sort((a, b) => a.seq - b.seq);
+    });
+  }, []);
+
+  const refresh = useCallback(async () => {
+    try {
+      const page = await api.messages(conversationId);
+      merge(page.messages);
+      setConv(page.conversation);
+      setError(null);
+      const last = page.messages.at(-1)?.seq ?? 0;
+      if (last > page.conversation.lastReadSeq) setConv(await api.markRead(conversationId, last));
+      return page;
+    } catch (e) {
+      setError(errorText(e));
+      return null;
+    }
+  }, [conversationId, merge]);
+
+  useEffect(() => {
+    void refresh().then((p) => p && setHasMore(p.hasMore));
+  }, [refresh]);
+  useRealtime([`conversation:${conversationId}`], () => void refresh());
+  useEffect(() => bottom.current?.scrollIntoView({ block: 'end' }), [messages.length, pending.length]);
+
+  const updatePending = useCallback(
+    (fn: (cur: Pending[]) => Pending[]) =>
+      setPending((cur) => {
+        const next = fn(cur);
+        pendingStore.save(conversationId, next);
+        return next;
+      }),
+    [conversationId],
+  );
+
+  const flush = useCallback(
+    async (list: Pending[]) => {
+      if (sending.current) return;
+      sending.current = true;
+      try {
+        for (const p of list) {
+          try {
+            const m = await api.sendMessage(conversationId, p);
+            merge([m]);
+            updatePending((cur) => cur.filter((x) => x.clientMsgId !== p.clientMsgId));
+          } catch (e) {
+            if (e instanceof ApiError && e.status > 0) {
+              // Lỗi nghiệp vụ (chỉ-đọc, mất quyền…): không thử lại.
+              setError(e.message);
+              updatePending((cur) => cur.filter((x) => x.clientMsgId !== p.clientMsgId));
+            } else {
+              updatePending((cur) => cur.map((x) => (x.clientMsgId === p.clientMsgId ? { ...x, failed: true } : x)));
+              break; // mất mạng: giữ thứ tự, chờ có mạng
+            }
+          }
+        }
+      } finally {
+        sending.current = false;
+      }
+    },
+    [conversationId, merge, updatePending],
+  );
+
+  useEffect(() => {
+    const retry = () => void flush(pendingStore.load(conversationId));
+    window.addEventListener('online', retry);
+    if (pending.length) retry();
+    return () => window.removeEventListener('online', retry);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, flush]);
+
+  const submit = () => {
+    const body = text.trim();
+    if (!body) return;
+    const p: Pending = {
+      clientMsgId: crypto.randomUUID(),
+      body,
+      replyToId: replyTo?.id,
+      mentionIds: mentions.filter((m) => body.includes(`@${m.name}`)).map((m) => m.id),
+      failed: false,
+    };
+    updatePending((cur) => [...cur, p]);
+    setText('');
+    setMentions([]);
+    setReplyTo(null);
+    void flush([...pendingStore.load(conversationId)]);
+  };
+
+  const loadOlder = async () => {
+    const first = messages[0];
+    if (!first) return;
+    const page = await api.messages(conversationId, { beforeSeq: first.seq });
+    merge(page.messages);
+    setHasMore(page.hasMore);
+  };
+
+  const edit = async (m: MessageDto) => {
+    const body = window.prompt('Sửa tin nhắn', m.body ?? '');
+    if (body === null || !body.trim() || body === m.body) return;
+    const keep = m.mentions.filter((x) => body.includes(`@${x.displayName}`)).map((x) => x.userId);
+    try {
+      merge([await api.editMessage(m.id, { body, mentionIds: keep })]);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+
+  const remove = async (m: MessageDto) => {
+    if (!window.confirm('Xoá tin nhắn này? Không khôi phục được.')) return;
+    try {
+      merge([await api.deleteMessage(m.id)]);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+
+  const others = members.filter((m) => m.userId !== meId);
+  const readOnly = conv?.readOnly ?? false;
+
+  return (
+    <div className="chat">
+      {hasMore && (
+        <button className="button small" onClick={() => void loadOlder()}>
+          Xem tin cũ hơn
+        </button>
+      )}
+      <ul className="messages">
+        {messages.length === 0 && pending.length === 0 && <li className="hint">Chưa có tin nhắn. Hãy chào cả nhóm.</li>}
+        {messages.map((m) => {
+          const mine = m.senderId === meId;
+          return (
+            <li key={m.id} className={mine ? 'msg mine' : 'msg'}>
+              <div className="meta">
+                <strong>{m.kind === 'system' ? 'Hệ thống' : m.senderName}</strong> <span className="hint">{time(m.createdAt)}</span>
+                {m.editedAt && !m.deleted && <span className="hint"> · đã sửa</span>}
+              </div>
+              {m.replyTo && (
+                <div className="quote">
+                  ↪ {m.replyTo.senderName}: {m.replyTo.excerpt ?? 'Tin đã xoá'}
+                </div>
+              )}
+              {m.deleted ? <em className="hint">Tin nhắn đã bị xoá</em> : <div className="body">{m.body}</div>}
+              {!m.deleted && m.kind === 'user' && !readOnly && (
+                <div className="row actions">
+                  <button className="link" onClick={() => setReplyTo(m)}>
+                    Trả lời
+                  </button>
+                  {mine && (
+                    <button className="link" onClick={() => void edit(m)}>
+                      Sửa
+                    </button>
+                  )}
+                  <button className="link" onClick={() => void remove(m)}>
+                    Xoá
+                  </button>
+                </div>
+              )}
+            </li>
+          );
+        })}
+        {pending.map((p) => (
+          <li key={p.clientMsgId} className="msg mine pending">
+            <div className="body">{p.body}</div>
+            <div className="hint">
+              {p.failed ? 'Chưa gửi được, sẽ gửi lại khi có mạng · ' : 'Đang gửi…'}
+              {p.failed && (
+                <button className="link" onClick={() => void flush(pending)}>
+                  Gửi lại
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <div ref={bottom} />
+      {error && <p className="error">{error}</p>}
+      {readOnly ? (
+        <p className="hint">Hội thoại đã khoá vì nhóm được lưu trữ. Bạn vẫn đọc được tin cũ.</p>
+      ) : (
+        <form
+          className="grid"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit();
+          }}
+        >
+          {replyTo && (
+            <div className="quote row">
+              ↪ Trả lời {replyTo.senderName}: {replyTo.body?.slice(0, 80)}
+              <button type="button" className="link" onClick={() => setReplyTo(null)}>
+                Huỷ
+              </button>
+            </div>
+          )}
+          <textarea
+            rows={2}
+            value={text}
+            maxLength={4000}
+            placeholder="Nhắn cho cả nhóm…"
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+          />
+          <div className="row">
+            {others.length > 0 && (
+              <select
+                value=""
+                aria-label="Nhắc tên"
+                onChange={(e) => {
+                  const m = others.find((x) => x.userId === e.target.value);
+                  if (!m) return;
+                  setText((t) => `${t}${t && !t.endsWith(' ') ? ' ' : ''}@${m.displayName} `);
+                  setMentions((cur) => [...cur.filter((x) => x.id !== m.userId), { id: m.userId, name: m.displayName }]);
+                }}
+              >
+                <option value="">@ Nhắc tên…</option>
+                {others.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.displayName}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button className="button primary" disabled={!text.trim()}>
+              Gửi
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}

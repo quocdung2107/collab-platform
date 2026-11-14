@@ -9,6 +9,7 @@ import { can, type GroupObject } from '../access/can.js';
 import { loadActorContext } from '../access/context.js';
 import { emit, signalAccessChanged } from '../activity/emit.js';
 import { viewOrg } from '../identity/organizations.js';
+import { ensureGroupConversation, setGroupConversationReadOnly } from '../messaging/conversations.js';
 import { topics } from '../realtime/publisher.js';
 
 interface GroupRow {
@@ -119,7 +120,7 @@ export async function createGroup(ctx: CommandCtx, orgId: string, input: { name:
     .catch(uniqueNameError);
   const group = r.rows[0]!;
   await emit(ctx, { orgId, verb: 'group.created', object: { type: 'group', id: group.id }, context: { groupId: group.id }, payload: { name } });
-  // TODO(F9): tạo Conversation anchor = group khi có module Messaging.
+  await ensureGroupConversation(ctx.tx, orgId, group.id);
   return detail(ctx.tx, group, null);
 }
 
@@ -165,7 +166,7 @@ export async function archiveGroup(ctx: CommandCtx, groupId: string, expectedVer
   await emit(ctx, { orgId: group.org_id, verb: 'group.archived', object: { type: 'group', id: groupId }, context: { groupId } }, [
     topics.group(groupId),
   ]);
-  // TODO(F9): chuyển hội thoại nhóm sang chỉ-đọc.
+  await setGroupConversationReadOnly(ctx.tx, groupId);
   return detail(ctx.tx, r.rows[0]!, myRole);
 }
 

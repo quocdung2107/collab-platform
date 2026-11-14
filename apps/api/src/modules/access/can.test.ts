@@ -1,6 +1,6 @@
 import type { GroupRole, OrgRole } from '@collab/shared';
 import { describe, expect, it } from 'vitest';
-import { can, type ActorContext, type GroupAction, type GroupObject, type OrgAction, type OrgObject } from './can.js';
+import { can, type ActorContext, type ConversationObject, type GroupAction, type GroupObject, type MessageObject, type OrgAction, type OrgObject } from './can.js';
 
 const ORG = 'org-1';
 const GROUP = 'grp-1';
@@ -11,8 +11,8 @@ function actor(orgRole: OrgRole | null, groupRole?: GroupRole, orgId = ORG): Act
 const org = (extra: Partial<OrgObject> = {}): OrgObject => ({ type: 'organization', id: ORG, ...extra });
 const group = (extra: Partial<GroupObject> = {}): GroupObject => ({ type: 'group', id: GROUP, orgId: ORG, archived: false, ...extra });
 
-type Expect = 'Y' | 'F' | 'N'; // Y = được, F = forbidden, N = not_found
-const outcome = (d: ReturnType<typeof can>): Expect => (d.allowed ? 'Y' : d.deny === 'forbidden' ? 'F' : 'N');
+type Expect = 'Y' | 'F' | 'N' | 'R'; // Y = được, F = forbidden, N = not_found, R = read_only
+const outcome = (d: ReturnType<typeof can>): Expect => (d.allowed ? 'Y' : d.deny === 'forbidden' ? 'F' : d.deny === 'read_only' ? 'R' : 'N');
 
 describe('PERMISSION_MODEL §4.1 Organization', () => {
   // [hành động, owner, admin, member]
@@ -83,5 +83,37 @@ describe('PERMISSION_MODEL §4.2 Group', () => {
 
   it('nhóm của tổ chức khác → not_found', () => {
     expect(outcome(can(actor('owner'), 'group.view', group({ orgId: 'org-2' })))).toBe('N');
+  });
+});
+
+describe('PERMISSION_MODEL §4.3 Conversation / Message (anchor group)', () => {
+  const conv = (readOnly = false): ConversationObject => ({ type: 'conversation', id: 'c-1', orgId: ORG, anchor: { type: 'group', id: GROUP }, readOnly });
+  const msg = (senderId: string | null, extra: Partial<MessageObject> = {}): MessageObject => ({
+    type: 'message', id: 'm-1', orgId: ORG, conversation: conv(), kind: 'user', senderId, deleted: false, ...extra,
+  });
+  const me = (orgRole: OrgRole, groupRole?: GroupRole) => ({ ...actor(orgRole, groupRole), userId: 'me' });
+
+  it('đọc/gửi: chỉ thành viên nhóm; org admin ngoài nhóm → not_found (AD-11)', () => {
+    expect(outcome(can(me('member', 'member'), 'conversation.read', conv()))).toBe('Y');
+    expect(outcome(can(me('member', 'member'), 'conversation.post', conv()))).toBe('Y');
+    expect(outcome(can(me('owner'), 'conversation.read', conv()))).toBe('N');
+    expect(outcome(can(me('member'), 'conversation.post', conv()))).toBe('N');
+    expect(outcome(can(actor(null, 'member'), 'conversation.read', conv()))).toBe('N');
+  });
+  it('hội thoại chỉ-đọc: đọc được, gửi → read_only', () => {
+    expect(outcome(can(me('member', 'member'), 'conversation.read', conv(true)))).toBe('Y');
+    expect(outcome(can(me('member', 'member'), 'conversation.post', conv(true)))).toBe('R');
+  });
+  it('sửa: chỉ người gửi; xoá: người gửi, leader, org admin đọc được hội thoại', () => {
+    expect(outcome(can(me('member', 'member'), 'message.edit', msg('me')))).toBe('Y');
+    expect(outcome(can(me('admin', 'leader'), 'message.edit', msg('other')))).toBe('F');
+    expect(outcome(can(me('member', 'member'), 'message.delete', msg('other')))).toBe('F');
+    expect(outcome(can(me('member', 'leader'), 'message.delete', msg('other')))).toBe('Y');
+    expect(outcome(can(me('admin', 'member'), 'message.delete', msg('other')))).toBe('Y');
+    expect(outcome(can(me('admin'), 'message.delete', msg('other')))).toBe('N');
+  });
+  it('tin system không sửa/xoá được; tin đã xoá không sửa được', () => {
+    expect(outcome(can(me('owner', 'leader'), 'message.delete', msg(null, { kind: 'system' })))).toBe('F');
+    expect(outcome(can(me('member', 'member'), 'message.edit', msg('me', { deleted: true })))).toBe('F');
   });
 });

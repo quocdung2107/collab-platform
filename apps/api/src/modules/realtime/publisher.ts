@@ -9,6 +9,10 @@ export interface RealtimeEvent {
   id: string;
   verb: string;
   activity_id?: string;
+  /** conversation.message / message_changed (EVENT_API_CONTRACTS §3): chỉ định danh và seq, không nội dung. */
+  conversation_id?: string;
+  seq?: number;
+  change?: 'edited' | 'deleted';
 }
 
 export interface RealtimePublisher {
@@ -33,4 +37,5 @@ export class MemoryRealtime implements RealtimePublisher {
 export const topics = {
   user: (userId: string) => `user:${userId}`,
   group: (groupId: string) => `group:${groupId}`,
+  conversation: (conversationId: string) => `conversation:${conversationId}`,
 };

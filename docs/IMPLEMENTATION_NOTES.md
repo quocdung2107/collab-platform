@@ -17,10 +17,14 @@ Các quyết định ở mức triển khai, không thay đổi AD nào trong `d
 | IN-11 | Token mời 256 bit base64url, chỉ lưu SHA-256; nhận lời mời khoá dòng `invites` (`FOR UPDATE`) | F1-T1/F1-T2: nhận đồng thời lời mời `max_uses = 1` → đúng một người thành công | Đếm lượt bằng `UPDATE … WHERE used_count < max_uses` không khoá: khó trả lý do lỗi chính xác |
 | IN-12 | Web định tuyến bằng hash (`#org=`, `#group=`, `#invite=`) | Chạy trên GitHub Pages không có rewrite; token mời được giữ qua vòng OAuth bằng localStorage | React Router với history API: cần cấu hình 404 fallback |
 | IN-13 | API thử nghiệm chạy trên Render (gói miễn phí, Singapore) qua `render.yaml`; web Pages lấy URL API từ biến repo `API_URL` | Dung chọn 2026-11-14; Blueprint trong repo nên cấu hình có phiên bản | Fly.io/Railway: cần thẻ thanh toán; Supabase Edge Functions: không chạy Fastify/pg như Node |
+| IN-14 | Hội thoại: cấp `seq` bằng `UPDATE conversations SET last_seq = last_seq + 1` sau khi khoá dòng hội thoại; kiểm `client_msg_id` trong cùng khoá | F9-T1/T2: seq liền mạch, gửi lặp đồng thời không tạo tin thứ hai, không thủng seq | Sequence Postgres riêng cho mỗi hội thoại: nhiều đối tượng DB; `max(seq)+1`: đua khi đồng thời |
+| IN-15 | Kênh realtime `conversation:{id}` (thêm vào `rt.can_read_topic`, `db/supabase/0003_realtime_conversation.sql`); tín hiệu `conversation.message` / `conversation.message_changed` mang `conversation_id`, `seq`, không nội dung | EVENT_API_CONTRACTS §3; hội thoại Event/Task sau này có người đọc khác thành viên nhóm nên không dùng chung `group:{id}` | Dùng `group:{id}`: sai người nhận khi có hội thoại Event |
+| IN-16 | Tin chưa gửi được giữ ở `localStorage` theo hội thoại, gửi lại cùng `clientMsgId` khi có mạng | F9-T7 không cần service worker đồng bộ nền | Background Sync API: Safari chưa hỗ trợ |
 
 ## Chưa làm, có chủ đích
 
-- Tạo Conversation cho nhóm khi tạo nhóm, và chuyển hội thoại sang chỉ-đọc khi lưu trữ nhóm: làm cùng F9 (Messaging). Đánh dấu `TODO(F9)` trong `groups.ts`.
+- Tin `system` (chiếu ActivityEvent vào hội thoại, F9-T9) và thông báo mention (F9-T3/T4/T6): làm cùng lõi thông báo S6.
+- Tệp đính kèm trong tin nhắn: S11.
 - Hệ quả của gỡ thành viên lên Assignment/Task/Event/Subscription/thiết bị đẩy (F1-T4/T5): làm cùng F4–F8, đánh dấu `TODO(F4–F8)` trong `members.ts`.
 - Nhắc org admin khi nhóm mất trưởng nhóm cuối cùng: làm cùng F11.
 - ESLint/Prettier: thêm khi có nhiều người/agent cùng sửa mã.

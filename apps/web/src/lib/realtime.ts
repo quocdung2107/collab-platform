@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { supabase } from './supabase';
 
 /**
- * Nghe tín hiệu realtime (AD-31): kênh riêng tư `user:{id}` và các `group:{id}` đang xem.
+ * Nghe tín hiệu realtime (AD-31): kênh riêng tư `user:{id}`, `group:{id}`, `conversation:{id}` đang xem.
  * Tín hiệu không mang nội dung (AD-10) → chỉ báo "có thay đổi", trang tự tải lại qua API.
  * `access_changed`: làm mới JWT rồi setAuth để Realtime đánh giá lại quyền vào kênh.
  */
@@ -23,6 +23,8 @@ export function useRealtime(topics: string[], onChange: () => void) {
           if (!disposed) cb.current();
         })
         .on('broadcast', { event: 'activity' }, () => !disposed && cb.current())
+        .on('broadcast', { event: 'conversation.message' }, () => !disposed && cb.current())
+        .on('broadcast', { event: 'conversation.message_changed' }, () => !disposed && cb.current())
         .subscribe(),
     );
     void supabase.auth.getSession().then(({ data }) => data.session && supabase.realtime.setAuth(data.session.access_token));

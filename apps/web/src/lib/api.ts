@@ -8,6 +8,9 @@ import type {
   InviteDto,
   InvitePreviewDto,
   MeResponse,
+  MessageDto,
+  MessagePageDto,
+  ConversationSummaryDto,
   MemberDto,
   OrganizationDto,
   OrgRole,
@@ -82,6 +85,20 @@ export const api = {
     request<GroupDetailDto>(`/v1/groups/${groupId}/members/${userId}`, json('PATCH', { role })),
   removeGroupMember: (groupId: string, userId: string) => request(`/v1/groups/${groupId}/members/${userId}`, json('DELETE')),
   leaveGroup: (groupId: string) => request(`/v1/groups/${groupId}/leave`, json('POST')),
+
+  conversations: (orgId: string) => request<ConversationSummaryDto[]>(`/v1/organizations/${orgId}/conversations`),
+  groupConversation: (groupId: string) => request<ConversationSummaryDto>(`/v1/groups/${groupId}/conversation`),
+  messages: (conversationId: string, q: { beforeSeq?: number; afterSeq?: number; limit?: number } = {}) => {
+    const qs = new URLSearchParams(Object.entries(q).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]));
+    return request<MessagePageDto>(`/v1/conversations/${conversationId}/messages${qs.size ? `?${qs}` : ''}`);
+  },
+  /** clientMsgId là khoá idempotent (F9-T1): gửi lại cùng khoá không tạo tin thứ hai. */
+  sendMessage: (conversationId: string, body: { clientMsgId: string; body: string; replyToId?: string; mentionIds?: string[] }) =>
+    request<MessageDto>(`/v1/conversations/${conversationId}/messages`, json('POST', body)),
+  editMessage: (messageId: string, body: { body: string; mentionIds: string[] }) => request<MessageDto>(`/v1/messages/${messageId}`, json('PATCH', body)),
+  deleteMessage: (messageId: string) => request<MessageDto>(`/v1/messages/${messageId}`, json('DELETE')),
+  markRead: (conversationId: string, seq: number) =>
+    request<ConversationSummaryDto>(`/v1/conversations/${conversationId}/read`, json('POST', { seq })),
 };
 
 export const errorText = (e: unknown) => (e instanceof ApiError ? e.message : 'Không kết nối được máy chủ. Thử lại sau.');
