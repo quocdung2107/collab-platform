@@ -1,4 +1,4 @@
-import type { ConversationSummaryDto, GroupMemberDto, MessageDto } from '@collab/shared';
+import type { ConversationSummaryDto, GroupMemberDto, MessageDto, ObjectCardDto } from '@collab/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, errorText } from '../lib/api';
 import { useRealtime } from '../lib/realtime';
@@ -156,6 +156,17 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
     }
   };
 
+  // F10: tạo Task từ tin (phạm vi theo hội thoại); tiêu đề điền sẵn từ nội dung, người tạo sửa được.
+  const makeTask = async (m: MessageDto) => {
+    const title = window.prompt('Tên việc', (m.body ?? '').slice(0, 120));
+    if (!title?.trim()) return;
+    try {
+      const t = await api.createTask({ title: title.trim(), sourceMessageId: m.id });
+      window.location.hash = `#task=${t.id}`;
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   const remove = async (m: MessageDto) => {
     if (!window.confirm('Xoá tin nhắn này? Không khôi phục được.')) return;
     try {
@@ -191,6 +202,7 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
                 </div>
               )}
               {m.deleted ? <em className="hint">Tin nhắn đã bị xoá</em> : <div className="body">{m.body}</div>}
+              {m.cards.length > 0 && <Cards cards={m.cards} />}
               {!m.deleted && m.kind === 'user' && !readOnly && (
                 <div className="row actions">
                   <button className="link" onClick={() => setReplyTo(m)}>
@@ -203,6 +215,9 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
                   )}
                   <button className="link" onClick={() => void remove(m)}>
                     Xoá
+                  </button>
+                  <button className="link" onClick={() => void makeTask(m)}>
+                    Tạo việc
                   </button>
                 </div>
               )}
@@ -282,6 +297,21 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
           </div>
         </form>
       )}
+    </div>
+  );
+}
+
+/** Thẻ đối tượng dưới tin (CONTEXT_ENGINE §5): không xem được → "Nội dung bị giới hạn". */
+export function Cards({ cards }: { cards: ObjectCardDto[] }) {
+  return (
+    <div className="cards">
+      {cards.map((c) => (
+        <span key={`${c.relation}:${c.type}:${c.id}`} className="tag">
+          {c.relation === 'created_from' ? 'Việc từ tin này: ' : ''}
+          {c.available ? <a href={`#${c.type}=${c.id}`}>{c.title}</a> : 'Nội dung bị giới hạn'}
+          {c.available && c.subtitle ? <span className="hint"> · {c.subtitle}</span> : null}
+        </span>
+      ))}
     </div>
   );
 }

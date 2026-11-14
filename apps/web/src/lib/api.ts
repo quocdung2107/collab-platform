@@ -28,6 +28,7 @@ import type {
   WorkspaceDto,
   TaskDto,
   TaskSummaryDto,
+  RelatedDto,
 } from '@collab/shared';
 import { supabase } from './supabase';
 
@@ -125,6 +126,10 @@ export const api = {
   relocateEvent: (eventId: string, body: { expectedVersion: number; location: string | null }) => request<EventDto>(`/v1/events/${eventId}/relocate`, json('POST', body)),
   cancelEvent: (eventId: string, body: { expectedVersion: number; reason?: string }) => request<EventDto>(`/v1/events/${eventId}/cancel`, json('POST', body)),
   task: (id: string) => request<TaskDto>(`/v1/tasks/${id}`),
+  related: (type: 'event' | 'task', id: string) => request<RelatedDto>(`/v1/${type}s/${id}/related`),
+  linkObjects: (from: { type: 'event' | 'task'; id: string }, to: { type: 'event' | 'task'; id: string }) =>
+    request<{ linkId: string }>('/v1/links', json('POST', { from, to }, true)),
+  unlink: (linkId: string) => request(`/v1/links/${linkId}`, json('DELETE')),
   eventTasks: (eventId: string) => request<TaskSummaryDto[]>(`/v1/events/${eventId}/tasks`),
   groupTasks: (groupId: string) => request<TaskSummaryDto[]>(`/v1/groups/${groupId}/tasks`),
   createTask: (body: NewTaskBody) => request<TaskDto>('/v1/tasks', json('POST', body, true)),
@@ -177,7 +182,8 @@ export interface NewTaskBody {
   orgId?: string;
   title: string;
   description?: string | null;
-  scope: { type: 'event' | 'group' | 'private'; eventId?: string; groupId?: string };
+  scope?: { type: 'event' | 'group' | 'private'; eventId?: string; groupId?: string };
+  sourceMessageId?: string;
   ownerId?: string | null;
   requiresAcceptance?: boolean;
   dueAt?: string | null;

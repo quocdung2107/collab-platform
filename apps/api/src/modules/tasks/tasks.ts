@@ -13,6 +13,8 @@ import { ensureTaskConversation } from '../messaging/conversations.js';
 import { topics } from '../realtime/publisher.js';
 import { viewEvent } from '../scheduling/access.js';
 import { TASK_COLS, taskObjects, viewTask, type TaskRow } from './access.js';
+import { linkTaskToSource, taskSource } from '../links/links.js';
+import { viewMessage } from '../messaging/conversations.js';
 
 /**
  * Module Task (F8, PERMISSION_MODEL §4.6, EVENT_API_CONTRACTS §2.3, §5.6, §5.7).
@@ -86,6 +88,7 @@ export async function taskDetail(db: Queryable, row: TaskRow, obj: TaskObject, a
     overdue: isOverdue(row),
     completedAt: row.completed_at?.toISOString() ?? null,
     conversationId: conv.rows[0]?.id ?? null,
+    source: await taskSource(db, actor.userId, row.id),
     version: row.version,
     can: {
       edit: row.status !== 'cancelled' && allowed('task.edit'),
@@ -188,15 +191,39 @@ export interface CreateTaskInput {
   orgId?: string;
   title: string;
   description?: string | null;
-  scope: { type: 'event' | 'group' | 'private'; eventId?: string; groupId?: string };
+  scope?: { type: 'event' | 'group' | 'private'; eventId?: string; groupId?: string };
   ownerId?: string | null;
+  /** Tạo từ tin nhắn (F10-T1): phải đọc được tin; phạm vi mặc định theo anchor của hội thoại chứa tin. */
+  sourceMessageId?: string;
   requiresAcceptance?: boolean;
   dueAt?: string | null;
   dueOffsetMin?: number | null;
 }
 
 export async function createTask(ctx: CommandCtx, input: CreateTaskInput) {
-  const s = input.scope;
+  let source: { id: string; orgId: string } | null = null;
+  let s = input.scope;
+  if (input.sourceMessageId) {
+    const v = await viewMessage(ctx.tx, ctx.user.id, input.sourceMessageId);
+    source = { id: input.sourceMessageId, orgId: v.conv.org_id };
+    const deleted = await ctx.tx.query(`select 1 from app.messages where id = $1 and deleted_at is null and kind = 'user'`, [input.sourceMessageId]);
+    if (!deleted.rowCount) throw notFound();
+    if (!s) {
+      const a = v.obj.anchor;
+      s =
+        a.type === 'group'
+          ? { type: 'group', groupId: a.id }
+          : a.type === 'event'
+            ? { type: 'event', eventId: a.id }
+            : a.task.scopeType === 'event'
+              ? { type: 'event', eventId: a.task.event!.id }
+              : a.task.scopeType === 'group'
+                ? { type: 'group', groupId: a.task.groupId! }
+                : { type: 'private' };
+    }
+    input = { ...input, orgId: input.orgId ?? v.conv.org_id };
+  }
+  if (!s) throw new AppError('validation_failed', 'Thiếu phạm vi', { fields: { scope: 'required' } });
   let orgId: string;
   let draft: TaskDraftObject;
   let eventStartsAt: Date | null = null;
@@ -269,10 +296,14 @@ export async function createTask(ctx: CommandCtx, input: CreateTaskInput) {
       verb: 'task.created',
       object: { type: 'task', id: row.id },
       context: contextOf(row),
-      payload: { title, scope_type: s.type, event_id: row.event_id, group_id: row.group_id, due_at: row.due_at?.toISOString() ?? null },
+      payload: { title, scope_type: s.type, event_id: row.event_id, group_id: row.group_id, due_at: row.due_at?.toISOString() ?? null, source_message_id: source?.id ?? null },
     },
     topicsOf(row),
   );
+  if (source) {
+    if (source.orgId !== orgId) throw new AppError('validation_failed', 'Tin nhắn thuộc tổ chức khác', { fields: { sourceMessageId: 'other_org' } });
+    await linkTaskToSource(ctx, orgId, row.id, source.id, contextOf(row), rootId);
+  }
   if (ownerId) {
     await emit(ctx, {
       orgId,

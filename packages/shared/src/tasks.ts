@@ -1,3 +1,5 @@
+import type { TaskSourceDto } from './context.js';
+
 export type TaskScopeType = 'event' | 'group' | 'private';
 export type TaskStatus = 'open' | 'in_progress' | 'done' | 'cancelled';
 export type TaskAcceptance = 'none' | 'pending' | 'accepted' | 'declined';
@@ -31,6 +33,8 @@ export interface TaskDto {
   overdue: boolean;
   completedAt: string | null;
   conversationId: string | null;
+  /** Task tạo từ tin nhắn (F10-T1, T2, T5); null nếu không tạo từ tin nhắn. */
+  source: TaskSourceDto | null;
   version: number;
   can: { edit: boolean; assign: boolean; respond: boolean; status: boolean; reopenCancel: boolean; flag: boolean; collaborators: boolean };
 }

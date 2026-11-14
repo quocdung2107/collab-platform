@@ -26,6 +26,18 @@ export interface MessageDto {
   createdAt: string;
   editedAt: string | null;
   deleted: boolean;
+  /** Thẻ đối tượng nhắc tới trong tin (references) và Task sinh ra từ tin (created_from), dựng theo quyền người xem. */
+  cards: ObjectCardDto[];
+}
+
+/** Thẻ đối tượng (CONTEXT_ENGINE §5): available = false → "Nội dung bị giới hạn", không có tiêu đề. */
+export interface ObjectCardDto {
+  relation: 'references' | 'created_from';
+  type: 'event' | 'task' | 'group';
+  id: string;
+  available: boolean;
+  title: string | null;
+  subtitle: string | null;
 }
 
 export interface MessagePageDto {
@@ -40,4 +52,6 @@ export interface SendMessageInput {
   body: string;
   replyToId?: string;
   mentionIds?: string[];
+  /** Thẻ chèn chủ động; đường dẫn nội bộ (#event=…, #task=…, #group=…) trong nội dung được nhận diện thêm. */
+  refs?: Array<{ type: 'event' | 'task' | 'group'; id: string }>;
 }

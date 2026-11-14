@@ -40,6 +40,9 @@ Các quyết định ở mức triển khai, không thay đổi AD nào trong `d
 | IN-34 | Gỡ thành viên: Task chưa xong về owner rỗng; "Cần bạn: giao lại" tới người giao nếu còn là thành viên, nếu không tới người thực hiện lệnh gỡ (như IN-25). Mục này nằm trong bản ghi gộp của `member.removed` | F1-T5; NOTIFICATION_ENGINE §4 "người quản lý phạm vi" khi người giao đã rời — chọn người gỡ vì chắc chắn có quyền | Tìm người quản lý phạm vi: nhiều người cùng nhận một việc |
 | IN-35 | Task mẫu / sao chép: không người phụ trách, hạn lưu dạng `due_offset_min` (hạn tuyệt đối của buổi nguồn được đổi thành độ lệch). `TemplateDefinition.tasks[].dueOffsetMin` cho phép `null` (không hạn) | F3; dời lịch tự dời hạn | Sao chép hạn tuyệt đối: hạn nằm ở quá khứ của buổi mới |
 | IN-36 | Sự kiện `task.*` trên buổi còn nháp không sinh thông báo (mở rộng IN-24) | Tạo buổi từ mẫu sinh Task; sửa nháp không báo ai | |
+| IN-37 | Thẻ trong tin: `refs[]` khi gửi/sửa (origin `manual`, không xem được → `not_found`) cộng đường dẫn nội bộ `#event=…`/`#task=…`/`#group=…` nhận diện trong nội dung (origin `system`, không xem được → bỏ qua). Sửa tin thay toàn bộ tập thẻ bằng tập mới | F10-T3, T6, T7; giao diện MVP chỉ cần dán đường dẫn | Bộ chọn thẻ riêng: thêm UI, chưa cần |
+| IN-38 | `MessageDto.cards` dựng theo người xem (references + Task tạo từ tin); `TaskDto.source` cho nguồn gốc; khối Liên quan `GET /v1/{events,tasks}/:id/related` trả số mục ẩn | CONTEXT_ENGINE §3, §5 (X2); một vòng gọi cho mỗi màn hình | |
+| IN-39 | Link `references` giữa hai đối tượng công việc chỉ một Link cho một cặp, bất kể chiều | Truy xuất hai chiều đã có; tránh trùng hiển thị | |
 
 ## Chưa làm, có chủ đích
 
