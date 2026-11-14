@@ -11,6 +11,7 @@ import { signInWithGoogle, signOut, supabase, supabaseConfigured } from './lib/s
 import { CalendarTab } from './pages/Calendar';
 import { Chats } from './pages/Chats';
 import { Groups } from './pages/Groups';
+import { ChatScreen } from './pages/ChatScreen';
 import { Me } from './pages/Me';
 import { TaskPage } from './pages/Tasks';
 import { EventPage } from './pages/EventPage';
@@ -22,7 +23,10 @@ import { NewEventPage } from './pages/NewEventPage';
 import { OpenInBrowser } from './pages/OpenInBrowser';
 import { OrgPage } from './pages/OrgPage';
 import { Settings } from './pages/Settings';
+import { DialogHost } from './ui/dialogs';
 import { Icon } from './ui/icons';
+import { useScrollRestore } from './ui/scroll';
+import { useScreenTitle } from './ui/title';
 import { initialsOf, LargeHeader, NavHeader, TabBar, TopActions } from './ui/Shell';
 
 export function App() {
@@ -35,6 +39,8 @@ export function App() {
   const reloadMe = () => setMeTick((t) => t + 1);
   const meId = me?.user.id;
   const org = useCurrentOrg(me?.memberships ?? []);
+  const screenTitle = useScreenTitle();
+  useScrollRestore(href(route));
   const counts = useLoad(() => (meId ? api.notificationCounts() : Promise.resolve(null)), [meId]);
   useRealtime(meId ? [`user:${meId}`] : [], counts.reload);
 
@@ -144,9 +150,9 @@ export function App() {
       {isTabRoot(route) ? (
         <LargeHeader title={TITLE[route.name]} leading={picker} actions={actions} />
       ) : (
-        <NavHeader route={route} title={TITLE[route.name]} actions={actions} />
+        <NavHeader route={route} title={screenTitle ?? { title: TITLE[route.name] }} actions={route.name === 'chat' ? null : actions} />
       )}
-      <main className="content" key={href(route)}>
+      <main className={route.name === 'chat' ? 'content chat-content' : 'content'} key={href(route)}>
         {needsOrg && !org && (
           <section className="card">
             <p className="hint">Bạn chưa thuộc tổ chức nào.</p>
@@ -166,10 +172,12 @@ export function App() {
         {route.name === 'org' && <OrgPage key={route.id} orgId={route.id} meId={me.user.id} onMembershipChanged={reloadMe} />}
         {route.name === 'group' && <GroupPage key={route.id} groupId={route.id} meId={me.user.id} />}
         {route.name === 'event' && <EventPage key={route.id} eventId={route.id} meId={me.user.id} />}
+        {route.name === 'chat' && <ChatScreen key={route.id} conversationId={route.id} meId={me.user.id} />}
         {route.name === 'task' && <TaskPage key={route.id} taskId={route.id} meId={me.user.id} />}
         {route.name === 'newevent' && <NewEventPage key={route.id + (route.copy ?? '')} orgId={route.id} copyFrom={route.copy} />}
       </main>
-      <TabBar active={tabOf(route)} badges={{ work: pendingCount }} />
+      <TabBar active={tabOf(route)} badges={{ work: pendingCount }} hiddenOnPhone={route.name === 'chat'} />
+      <DialogHost />
     </div>
   );
 }
@@ -187,5 +195,6 @@ const TITLE: Record<Route['name'], string> = {
   group: 'Nhóm',
   event: 'Buổi',
   task: 'Việc',
+  chat: 'Trò chuyện',
   newevent: 'Tạo buổi',
 };

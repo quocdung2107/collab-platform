@@ -4,6 +4,8 @@ import { api } from '../lib/api';
 import { useRealtime } from '../lib/realtime';
 import { go, href } from '../lib/route';
 import { useAction, useLoad } from '../lib/useLoad';
+import { confirmThen } from '../ui/dialogs';
+import { Skeleton } from '../ui/kit';
 import { roleLabel } from './Home';
 
 /** Quản lý tổ chức (UX §4.10): thành viên, liên kết mời, rời tổ chức. Lịch và Nhóm nằm ở tab riêng. */
@@ -17,7 +19,7 @@ export function OrgPage({ orgId, meId, onMembershipChanged }: { orgId: string; m
   const act = useAction();
 
   if (org.error) return <NotAvailable />;
-  if (!org.data) return <p className="center">Đang tải…</p>;
+  if (!org.data) return <Skeleton rows={4} />;
   const o = org.data;
   const isAdmin = o.myRole === 'owner' || o.myRole === 'admin';
   const isOwner = o.myRole === 'owner';
@@ -66,8 +68,9 @@ export function OrgPage({ orgId, meId, onMembershipChanged }: { orgId: string; m
                       className="button small danger"
                       disabled={act.busy}
                       onClick={() =>
-                        window.confirm(`Gỡ ${m.displayName} khỏi tổ chức? Người này sẽ rời mọi nhóm.`) &&
-                        void act.run(() => api.removeMember(orgId, m.userId), reload)
+                        confirmThen({ title: `Gỡ ${m.displayName} khỏi tổ chức?`, message: 'Người này sẽ rời mọi nhóm; vị trí và việc của họ được báo cho người điều phối.', confirmLabel: 'Gỡ', danger: true }, () =>
+                          act.run(() => api.removeMember(orgId, m.userId), reload),
+                        )
                       }
                     >
                       Gỡ
@@ -82,10 +85,11 @@ export function OrgPage({ orgId, meId, onMembershipChanged }: { orgId: string; m
           className="button small"
           disabled={act.busy}
           onClick={() =>
-            window.confirm('Rời tổ chức này?') &&
-            void act.run(
-              () => api.leaveOrg(orgId),
-              () => (onMembershipChanged(), go({ name: 'home' })),
+            confirmThen({ title: 'Rời tổ chức này?', confirmLabel: 'Rời tổ chức', danger: true }, () =>
+              act.run(
+                () => api.leaveOrg(orgId),
+                () => (onMembershipChanged(), go({ name: 'home' })),
+              ),
             )
           }
         >

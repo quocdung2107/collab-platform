@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { useRealtime } from '../lib/realtime';
-import { go, href } from '../lib/route';
+import { go } from '../lib/route';
 import { useAction, useLoad } from '../lib/useLoad';
-import { ChatPanel } from './ChatPanel';
+import { confirmThen } from '../ui/dialogs';
+import { Skeleton } from '../ui/kit';
+import { useSetTitle } from '../ui/title';
+import { ChatLink } from './ChatScreen';
 import { NotAvailable } from './OrgPage';
 import { TaskList } from './Tasks';
 
@@ -19,8 +22,9 @@ export function GroupPage({ groupId, meId }: { groupId: string; meId: string }) 
   // AD-11: chỉ thành viên nhóm đọc hội thoại nhóm (kể cả org admin).
   const conv = useLoad(() => (isMember ? api.groupConversation(groupId) : Promise.resolve(null)), [groupId, isMember]);
 
+  useSetTitle(group.data ? { title: group.data.name } : null);
   if (group.error) return <NotAvailable />;
-  if (!group.data) return <p className="center">Đang tải…</p>;
+  if (!group.data) return <Skeleton rows={4} />;
   const g = group.data;
   const isOrgAdmin = org.data?.myRole === 'owner' || org.data?.myRole === 'admin';
   const canManage = !g.archived && (isOrgAdmin || g.myRole === 'leader');
@@ -29,12 +33,18 @@ export function GroupPage({ groupId, meId }: { groupId: string; meId: string }) 
 
   return (
     <>
-    {conv.data && (
-      <section className="card">
-        <h2>Trò chuyện nhóm</h2>
-        <ChatPanel key={conv.data.id} conversationId={conv.data.id} meId={meId} members={g.members} />
-      </section>
-    )}
+    <section className="card hero">
+      <h1>
+        {g.name} {g.archived && <span className="tag">Đã lưu trữ</span>}
+      </h1>
+      {g.description && <p>{g.description}</p>}
+      <p className="hint">
+        {g.memberCount} thành viên
+        {g.myRole === 'leader' ? ' · bạn là trưởng nhóm' : g.myRole ? ' · bạn là thành viên' : ''}
+        {org.data ? ` · ${org.data.name}` : ''}
+      </p>
+    </section>
+    {conv.data && <ChatLink conversationId={conv.data.id} label="Trò chuyện nhóm" unread={conv.data.unreadCount} />}
     <TaskList
       load={() => api.groupTasks(groupId)}
       deps={[groupId]}
@@ -47,12 +57,7 @@ export function GroupPage({ groupId, meId }: { groupId: string; meId: string }) 
       </section>
     )}
     <section className="card">
-      <h1>
-        {g.name} {g.archived && <span className="hint">(đã lưu trữ)</span>}
-      </h1>
-      {g.description && <p>{g.description}</p>}
       {act.error && <p className="error">{act.error}</p>}
-
       <h2>Thành viên ({g.memberCount})</h2>
       <ul className="list">
         {g.members.map((m) => (
@@ -117,8 +122,9 @@ export function GroupPage({ groupId, meId }: { groupId: string; meId: string }) 
             className="button small danger"
             disabled={act.busy}
             onClick={() =>
-              window.confirm(`Lưu trữ nhóm ${g.name}?`) &&
-              void act.run(() => api.archiveGroup(groupId, g.version), () => go({ name: 'groups' }))
+              confirmThen({ title: `Lưu trữ nhóm ${g.name}?`, message: 'Trò chuyện của nhóm chuyển sang chỉ đọc.', confirmLabel: 'Lưu trữ', danger: true }, () =>
+                act.run(() => api.archiveGroup(groupId, g.version), () => go({ name: 'groups' })),
+              )
             }
           >
             Lưu trữ nhóm

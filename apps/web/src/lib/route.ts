@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 /**
  * Định tuyến bằng hash để chạy được trên GitHub Pages (không có rewrite phía máy chủ).
@@ -11,6 +12,8 @@ export type Route =
   | { name: 'group'; id: string }
   | { name: 'event'; id: string }
   | { name: 'task'; id: string }
+  /** Hội thoại toàn màn hình (UX §4.2b); id = conversationId. */
+  | { name: 'chat'; id: string }
   /** Tạo Event trong tổ chức id; copy = Event nguồn khi "sao chép buổi trước". */
   | { name: 'newevent'; id: string; copy?: string }
   | { name: 'invite'; token: string }
@@ -36,6 +39,7 @@ export function parseRoute(hash: string): Route {
   if (v && k === 'group') return { name: 'group', id: v };
   if (v && k === 'event') return { name: 'event', id: v };
   if (v && k === 'task') return { name: 'task', id: v };
+  if (v && k === 'chat') return { name: 'chat', id: v };
   if (v && k === 'newevent') {
     const j = v.indexOf('&copy=');
     return j < 0 ? { name: 'newevent', id: v } : { name: 'newevent', id: v.slice(0, j), copy: v.slice(j + 6) };
@@ -56,6 +60,7 @@ export function href(r: Route): string {
     case 'group':
     case 'event':
     case 'task':
+    case 'chat':
       return `#${r.name}=${r.id}`;
     default:
       return `#${r.name}`;
@@ -80,6 +85,7 @@ export function tabOf(r: Route): Tab | null {
     case 'newevent':
       return 'calendar';
     case 'chats':
+    case 'chat':
       return 'chats';
     case 'groups':
     case 'group':
@@ -100,6 +106,8 @@ export function parentOf(r: Route): Route {
       return { name: 'calendar' };
     case 'group':
       return { name: 'groups' };
+    case 'chat':
+      return { name: 'chats' };
     case 'org':
     case 'settings':
       return { name: 'me' };
@@ -118,13 +126,19 @@ export class HashTrail {
   constructor(start: string) {
     this.trail = [start];
   }
-  /** Gọi ở mỗi hashchange. */
-  visit(h: string) {
+  /** Gọi ở mỗi hashchange; trả hướng đi để chọn chuyển cảnh và khôi phục vị trí cuộn. */
+  visit(h: string): 'forward' | 'back' | 'replace' {
     if (this.replacing) {
       this.replacing = false;
       this.trail[this.trail.length - 1] = h;
-    } else if (this.trail.length > 1 && this.trail[this.trail.length - 2] === h) this.trail.pop();
-    else this.trail.push(h);
+      return 'replace';
+    }
+    if (this.trail.length > 1 && this.trail[this.trail.length - 2] === h) {
+      this.trail.pop();
+      return 'back';
+    }
+    this.trail.push(h);
+    return 'forward';
   }
   canGoBack() {
     return this.trail.length > 1;
@@ -135,9 +149,22 @@ export class HashTrail {
   }
 }
 
-const norm = (h: string) => (h === '' || h === '#' ? '#' : h);
+export const norm = (h: string) => (h === '' || h === '#' ? '#' : h);
 const trail = typeof window !== 'undefined' ? new HashTrail(norm(window.location.hash)) : null;
-if (typeof window !== 'undefined') window.addEventListener('hashchange', () => trail?.visit(norm(window.location.hash)));
+
+/** Vị trí cuộn của từng màn hình đã rời, để quay lại đúng chỗ (UX §2 quy tắc 2). */
+const scrollPos = new Map<string, number>();
+let lastHash = typeof window !== 'undefined' ? norm(window.location.hash) : '#';
+let lastDir: 'forward' | 'back' | 'replace' = 'forward';
+if (typeof window !== 'undefined')
+  window.addEventListener('hashchange', () => {
+    const h = norm(window.location.hash);
+    scrollPos.set(lastHash, window.scrollY);
+    lastDir = trail?.visit(h) ?? 'forward';
+    lastHash = h;
+  });
+export const lastNavDirection = () => lastDir;
+export const savedScroll = (h: string) => scrollPos.get(norm(h));
 
 export function goBack(r: Route) {
   if (trail?.canGoBack()) window.history.back();
@@ -147,10 +174,23 @@ export function goBack(r: Route) {
   }
 }
 
+const reduceMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
 export function useRoute() {
   const [route, setRoute] = useState(() => parseRoute(window.location.hash));
   useEffect(() => {
-    const on = () => setRoute(parseRoute(window.location.hash));
+    let prev = parseRoute(window.location.hash);
+    const on = () => {
+      const next = parseRoute(window.location.hash);
+      // Chuyển cảnh kiểu ứng dụng: đẩy màn hình mới từ phải, quay lại trượt về trái, đổi tab chỉ mờ dần.
+      const kind = isTabRoot(prev) && isTabRoot(next) ? 'tab' : lastNavDirection() === 'back' ? 'back' : 'forward';
+      prev = next;
+      const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+      if (doc.startViewTransition && !reduceMotion()) {
+        document.documentElement.dataset.nav = kind;
+        doc.startViewTransition(() => flushSync(() => setRoute(next)));
+      } else setRoute(next);
+    };
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);

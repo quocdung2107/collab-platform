@@ -1,7 +1,9 @@
 import type { WorkspaceAssignmentDto, WorkspaceTaskDto } from '@collab/shared';
 import { api } from '../lib/api';
 import { setCurrentOrg } from '../lib/currentOrg';
-import { dayLabel, timeLabel } from '../lib/datetime';
+import { shortDay, timeLabel } from '../lib/datetime';
+import { Icon } from '../ui/icons';
+import { DateTile, Skeleton } from '../ui/kit';
 import { useRealtime } from '../lib/realtime';
 import { go, href } from '../lib/route';
 import { useLoad } from '../lib/useLoad';
@@ -14,38 +16,66 @@ export function Today({ meId, renderTask }: { meId: string; renderTask?: (t: Wor
   const ws = useLoad(() => api.workspace(), []);
   useRealtime([`user:${meId}`], ws.reload);
   if (ws.error) return <p className="error">{ws.error}</p>;
-  if (!ws.data) return <p className="center">Đang tải…</p>;
+  if (!ws.data) return <Skeleton rows={2} sections={2} />;
   const w = ws.data;
   const empty = !w.needsResponse.length && !w.upcoming.length && !w.news.length && !w.coordinate?.shortPositions.length && !w.coordinate?.declinedTasks.length;
 
-  const row = (x: Item) =>
+  const needs = (x: Item) => (x.kind === 'assignment' ? x.status === 'requested' || x.status === 'reconfirm' : false);
+  const row = (x: Item, withDate = false) =>
     x.kind === 'assignment' ? (
-      <li key={x.id}>
-        <span className="grid">
-          <a href={href({ name: 'event', id: x.eventId })}>{x.eventTitle}</a>
-          <span className="hint">
-            {x.positionName}
-            {x.groupName ? ` · ${x.groupName}` : ''} · có mặt {dayLabel(x.reportAt)} {timeLabel(x.reportAt)}
-            {x.location ? ` · ${x.location}` : ''} · {x.orgName}
+      <li key={x.id} className="item">
+        <a className="cell-link" href={href({ name: 'event', id: x.eventId })}>
+          {withDate ? (
+            <DateTile iso={x.reportAt} />
+          ) : (
+            <span className="leading-icon kind-event">
+              <Icon name="calendar" size={18} />
+            </span>
+          )}
+          <span className="grid">
+            <strong>{x.eventTitle}</strong>
+            <span className="hint">
+              {x.positionName} · có mặt {timeLabel(x.reportAt)}
+              {withDate ? '' : `, ${shortDay(x.reportAt)}`}
+              {x.location ? ` · ${x.location}` : ''}
+            </span>
+            <span className="hint small">
+              {x.groupName ? `${x.groupName} · ` : ''}
+              {x.orgName}
+            </span>
           </span>
-        </span>
-        {(x.status === 'requested' || x.status === 'reconfirm') && <RespondButtons assignmentId={x.id} status={x.status} onDone={ws.reload} />}
+          {x.status === 'reconfirm' && <span className="tag warn">Đã dời giờ</span>}
+          {x.status === 'accepted' && <span className="tag ok">Đã nhận</span>}
+        </a>
+        {needs(x) && <RespondButtons assignmentId={x.id} status={x.status} onDone={ws.reload} large />}
       </li>
     ) : (
-      <li key={x.id}>
+      <li key={x.id} className="item">
         {renderTask ? (
           renderTask(x, ws.reload)
         ) : (
-          <span className="grid">
-            <a href={href({ name: 'task', id: x.id })}>{x.title}</a>
-            <span className="hint">
-              Việc{x.scope.name ? ` · ${x.scope.name}` : ''}
-              {x.dueAt ? ` · hạn ${dayLabel(x.dueAt)} ${timeLabel(x.dueAt)}` : ''} · {x.orgName}
-              {x.acceptance === 'pending' ? ' · chờ bạn nhận' : ''}
+          <a className="cell-link" href={href({ name: 'task', id: x.id })}>
+            {withDate && x.dueAt ? (
+              <DateTile iso={x.dueAt} />
+            ) : (
+              <span className="leading-icon kind-task">
+                <Icon name="work" size={18} />
+              </span>
+            )}
+            <span className="grid">
+              <strong>{x.title}</strong>
+              <span className="hint">
+                Việc{x.scope.name ? ` · ${x.scope.name}` : ''}
+                {x.dueAt ? ` · hạn ${timeLabel(x.dueAt)} ${shortDay(x.dueAt)}` : ''}
+              </span>
+              <span className="hint small">
+                {x.orgName}
+                {x.acceptance === 'pending' ? ' · chờ bạn nhận' : ''}
+              </span>
             </span>
-          </span>
+            {x.overdue ? <span className="tag warn">Quá hạn</span> : x.acceptance === 'pending' ? <span className="tag info">Chờ nhận</span> : null}
+          </a>
         )}
-        {x.overdue && <span className="tag warn">Quá hạn</span>}
       </li>
     );
 
@@ -57,22 +87,34 @@ export function Today({ meId, renderTask }: { meId: string; renderTask?: (t: Wor
           <ul className="list">
             {w.coordinate.shortPositions.map((p) => (
               <li key={p.positionId}>
-                <span className="grid">
-                  <a href={href({ name: 'event', id: p.eventId })}>{p.eventTitle}</a>
-                  <span className="hint">
-                    {p.positionName}
-                    {p.groupName ? ` · ${p.groupName}` : ''} · {dayLabel(p.startsAt)}
+                <a className="cell-link" href={href({ name: 'event', id: p.eventId })}>
+                  <span className="leading-icon kind-warn">
+                    <Icon name="alert" size={18} />
                   </span>
-                </span>
-                <span className="tag warn">
-                  thiếu {p.slots - p.filled}/{p.slots}
-                </span>
+                  <span className="grid">
+                    <strong>{p.eventTitle}</strong>
+                    <span className="hint">
+                      {p.positionName}
+                      {p.groupName ? ` · ${p.groupName}` : ''} · {shortDay(p.startsAt)}
+                    </span>
+                  </span>
+                  <span className="tag warn">
+                    thiếu {p.slots - p.filled}/{p.slots}
+                  </span>
+                </a>
               </li>
             ))}
             {w.coordinate.declinedTasks.map((t) => (
               <li key={t.id}>
-                <a href={href({ name: 'task', id: t.id })}>{t.title}</a>
-                <span className="hint">{t.declinedBy} đã từ chối: cần giao lại</span>
+                <a className="cell-link" href={href({ name: 'task', id: t.id })}>
+                  <span className="leading-icon kind-warn">
+                    <Icon name="alert" size={18} />
+                  </span>
+                  <span className="grid">
+                    <strong>{t.title}</strong>
+                    <span className="hint">{t.declinedBy} đã từ chối: cần giao lại</span>
+                  </span>
+                </a>
               </li>
             ))}
           </ul>
@@ -81,13 +123,13 @@ export function Today({ meId, renderTask }: { meId: string; renderTask?: (t: Wor
       {w.needsResponse.length > 0 && (
         <section className="card">
           <h2>Cần phản hồi ({w.needsResponse.length})</h2>
-          <ul className="list">{w.needsResponse.map(row)}</ul>
+          <ul className="list">{w.needsResponse.map((x) => row(x))}</ul>
         </section>
       )}
       {w.upcoming.length > 0 && (
         <section className="card">
           <h2>Sắp tới</h2>
-          <ul className="list">{w.upcoming.map(row)}</ul>
+          <ul className="list">{w.upcoming.map((x) => row(x, true))}</ul>
         </section>
       )}
       {w.news.length > 0 && (
@@ -97,7 +139,7 @@ export function Today({ meId, renderTask }: { meId: string; renderTask?: (t: Wor
             {w.news.map((n) => (
               <li key={n.id}>
                 <button
-                  className="link notif-body"
+                  className="cell-link notif-body"
                   onClick={() =>
                     void api.readNotification(n.id).then(() => {
                       if (n.link?.route === 'event') go({ name: 'event', id: n.link.id });
@@ -107,12 +149,17 @@ export function Today({ meId, renderTask }: { meId: string; renderTask?: (t: Wor
                     })
                   }
                 >
+                  <span className="leading-icon kind-news">
+                    <Icon name="bell" size={18} />
+                  </span>
+                  <span className="grid">
                   <strong>{n.title}</strong>
                   {n.lines.map((l, i) => (
                     <span key={i} className="notif-line">
                       {l}
                     </span>
                   ))}
+                  </span>
                 </button>
               </li>
             ))}
@@ -120,7 +167,8 @@ export function Today({ meId, renderTask }: { meId: string; renderTask?: (t: Wor
         </section>
       )}
       {empty && (
-        <section className="card">
+        <section className="card empty-state">
+          <Icon name="work" size={40} />
           <p>Bạn chưa có việc nào.</p>
           {w.firstOrgId && (
             <a className="button" href={href({ name: 'calendar' })} onClick={() => setCurrentOrg(w.firstOrgId!)}>

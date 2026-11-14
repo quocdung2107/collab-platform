@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { goBack, href, type Route, type Tab } from '../lib/route';
 import { Icon, type IconName } from './icons';
+import type { ScreenTitle } from './title';
 
 const TABS: Array<{ tab: Tab; label: string; icon: IconName; route: Route }> = [
   { tab: 'work', label: 'Việc của tôi', icon: 'work', route: { name: 'home' } },
@@ -12,9 +13,9 @@ const TABS: Array<{ tab: Tab; label: string; icon: IconName; route: Route }> = [
 const count = (n: number) => (n > 99 ? '99+' : String(n));
 
 /** Thanh 4 tab ở đáy (UX §2, phụ lục AD-25). badges: số hiện trên từng tab. */
-export function TabBar({ active, badges }: { active: Tab | null; badges: Partial<Record<Tab, number>> }) {
+export function TabBar({ active, badges, hiddenOnPhone = false }: { active: Tab | null; badges: Partial<Record<Tab, number>>; hiddenOnPhone?: boolean }) {
   return (
-    <nav className="tabbar" aria-label="Điều hướng chính">
+    <nav className={hiddenOnPhone ? 'tabbar phone-hidden' : 'tabbar'} aria-label="Điều hướng chính">
       {TABS.map((t) => {
         const n = badges[t.tab] ?? 0;
         return (
@@ -35,7 +36,7 @@ export function TabBar({ active, badges }: { active: Tab | null; badges: Partial
 export function TopActions({ unread, pending, initials }: { unread: number; pending: number; initials: string }) {
   const n = pending || unread;
   return (
-    <span className="top-actions">
+    <>
       <a className="icon-button" href={href({ name: 'inbox' })} aria-label={n ? `Thông báo, ${n} mới` : 'Thông báo'}>
         <Icon name="bell" />
         {n > 0 && <span className={pending ? 'dot-count' : 'dot-count quiet'}>{count(n)}</span>}
@@ -43,7 +44,7 @@ export function TopActions({ unread, pending, initials }: { unread: number; pend
       <a className="avatar" href={href({ name: 'me' })} aria-label="Tài khoản của tôi">
         {initials}
       </a>
-    </span>
+    </>
   );
 }
 
@@ -53,7 +54,7 @@ export function LargeHeader({ title, leading, actions }: { title: string; leadin
     <header className="appbar large">
       <div className="appbar-row">
         <span className="appbar-leading">{leading}</span>
-        {actions}
+        <span className="top-actions">{actions}</span>
       </div>
       <h1 className="large-title">{title}</h1>
     </header>
@@ -61,16 +62,26 @@ export function LargeHeader({ title, leading, actions }: { title: string; leadin
 }
 
 /** Đầu màn hình con: nút quay lại + tiêu đề giữa. */
-export function NavHeader({ route, title, actions }: { route: Route; title: string; actions: ReactNode }) {
+export function NavHeader({ route, title, actions }: { route: Route; title: ScreenTitle; actions: ReactNode }) {
   return (
     <header className="appbar">
       <div className="appbar-row">
         <button className="back" onClick={() => goBack(route)} aria-label="Quay lại">
           <Icon name="back" />
-          <span>Quay lại</span>
+          <span className="back-label">Quay lại</span>
         </button>
-        <span className="appbar-title">{title}</span>
-        {actions}
+        {title.href ? (
+          <a className="appbar-title" href={title.href}>
+            <span className="t">{title.title}</span>
+            {title.subtitle && <span className="s">{title.subtitle} · xem chi tiết</span>}
+          </a>
+        ) : (
+          <span className="appbar-title">
+            <span className="t">{title.title}</span>
+            {title.subtitle && <span className="s">{title.subtitle}</span>}
+          </span>
+        )}
+        <span className="top-actions">{actions}</span>
       </div>
     </header>
   );

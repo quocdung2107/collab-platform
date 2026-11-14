@@ -3,9 +3,13 @@ import { useEffect, useState } from 'react';
 import { api, type NewTaskBody } from '../lib/api';
 import { dayLabel, fromLocalInput, timeLabel, toLocalInput } from '../lib/datetime';
 import { useRealtime } from '../lib/realtime';
-import { href } from '../lib/route';
+import { go, href } from '../lib/route';
 import { useAction, useLoad } from '../lib/useLoad';
-import { ChatPanel } from './ChatPanel';
+import { dialogs } from '../ui/dialogs';
+import { Icon } from '../ui/icons';
+import { Banner, Skeleton } from '../ui/kit';
+import { useSetTitle } from '../ui/title';
+import { ChatLink } from './ChatScreen';
 import { Follow } from './EventPage';
 import { NotAvailable } from './OrgPage';
 import { Related } from './Related';
@@ -37,20 +41,23 @@ export function TaskList({
       <ul className="list">
         {list.data?.map((t) => (
           <li key={t.id}>
-            <span className="grid">
-              <a href={href({ name: 'task', id: t.id })}>{t.title}</a>
-              <span className="hint">
-                {t.owner ? t.owner.displayName : 'Chưa giao'}
-                {t.acceptance === 'pending' && ' (chờ nhận)'}
-                {t.acceptance === 'declined' && ' (đã từ chối)'} · {dueText(t.dueAt)}
+            <a className="cell-link" href={href({ name: 'task', id: t.id })}>
+              <span className={`check ${t.status}`} aria-hidden="true" />
+              <span className="grid">
+                <strong className={t.status === 'done' || t.status === 'cancelled' ? 'struck' : undefined}>{t.title}</strong>
+                <span className="hint">
+                  {t.owner ? t.owner.displayName : 'Chưa giao'}
+                  {t.acceptance === 'pending' && ' (chờ nhận)'}
+                  {t.acceptance === 'declined' && ' (đã từ chối)'} · {dueText(t.dueAt)}
+                </span>
               </span>
-            </span>
-            <span className="row">
-              {t.blocked && <span className="tag warn">Bị chặn</span>}
-              {t.needsHelp && <span className="tag warn">Cần giúp</span>}
-              {t.overdue && <span className="tag warn">Quá hạn</span>}
-              <span className="tag">{taskStatusLabel[t.status]}</span>
-            </span>
+              <span className="tags">
+                {t.blocked && <span className="tag warn">Bị chặn</span>}
+                {t.needsHelp && <span className="tag warn">Cần giúp</span>}
+                {t.overdue && <span className="tag warn">Quá hạn</span>}
+                {t.status === 'in_progress' && <span className="tag info">Đang làm</span>}
+              </span>
+            </a>
           </li>
         ))}
       </ul>
@@ -130,42 +137,88 @@ export function TaskPage({ taskId, meId }: { taskId: string; meId: string }) {
     void api.readTarget('task', taskId).catch(() => undefined);
   }, [taskId]);
 
+  useSetTitle(task.data ? { title: task.data.title, subtitle: 'Việc' } : null);
   if (task.error) return <NotAvailable />;
-  if (!task.data) return <p className="center">Đang tải…</p>;
+  if (!task.data) return <Skeleton rows={3} sections={2} />;
   const t = task.data;
   const run = <T,>(fn: () => Promise<T>) => void act.run(fn, task.reload);
-  const back =
-    t.scope.type === 'event' && t.scope.id
-      ? { href: href({ name: 'event', id: t.scope.id }), label: t.scope.name ?? 'Buổi' }
-      : t.scope.type === 'group' && t.scope.id
-        ? { href: href({ name: 'group', id: t.scope.id }), label: t.scope.name ?? 'Nhóm' }
-        : { href: href({ name: 'home' }), label: 'Hôm nay' };
   const open = t.status === 'open' || t.status === 'in_progress';
+  const scopeLink =
+    t.scope.type === 'event' && t.scope.id
+      ? { href: href({ name: 'event', id: t.scope.id }), label: `Buổi ${t.scope.name ?? ''}` }
+      : t.scope.type === 'group' && t.scope.id
+        ? { href: href({ name: 'group', id: t.scope.id }), label: `Nhóm ${t.scope.name ?? ''}` }
+        : null;
+
+  type Op = 'done' | 'start' | 'reopen' | 'help' | 'blocked' | 'edit' | 'cancel' | 'leave';
+  const more = async () => {
+    const op = await dialogs.choose<Op>({
+      title: t.title,
+      options: [
+        ...(t.can.respond && t.can.status && open ? [{ label: 'Đánh dấu xong', value: 'done' as const }] : []),
+        ...(t.can.status && t.status === 'open' ? [{ label: 'Bắt đầu làm', value: 'start' as const }] : []),
+        ...(t.can.reopenCancel && t.status === 'done' ? [{ label: 'Mở lại', value: 'reopen' as const }] : []),
+        ...(t.can.flag ? [{ label: t.needsHelp ? 'Bỏ cờ "Cần giúp"' : 'Báo cần giúp', value: 'help' as const }] : []),
+        ...(t.can.flag ? [{ label: t.blocked ? 'Bỏ cờ "Bị chặn"' : 'Báo bị chặn', value: 'blocked' as const }] : []),
+        ...(t.can.edit ? [{ label: editing ? 'Đóng phần sửa' : 'Sửa tên, mô tả, hạn', value: 'edit' as const }] : []),
+        ...(t.collaborators.some((c) => c.userId === meId) && open ? [{ label: 'Thôi cùng làm', value: 'leave' as const }] : []),
+        ...(t.can.reopenCancel && open ? [{ label: 'Huỷ việc', value: 'cancel' as const, danger: true }] : []),
+      ],
+    });
+    if (op === 'done') run(() => api.taskStatus(taskId, { expectedVersion: t.version, status: 'done' }));
+    else if (op === 'start') run(() => api.taskStatus(taskId, { expectedVersion: t.version, status: 'in_progress' }));
+    else if (op === 'reopen') run(() => api.taskStatus(taskId, { expectedVersion: t.version, status: 'open' }));
+    else if (op === 'help') run(() => api.taskFlags(taskId, { needsHelp: !t.needsHelp }));
+    else if (op === 'blocked') run(() => api.taskFlags(taskId, { blocked: !t.blocked }));
+    else if (op === 'edit') setEditing((x) => !x);
+    else if (op === 'leave') run(() => api.taskCollaborators(taskId, { remove: [meId] }));
+    else if (op === 'cancel') {
+      const reason = await dialogs.prompt({ title: 'Huỷ việc này?', placeholder: 'Lý do (không bắt buộc)', confirmLabel: 'Huỷ việc', danger: true });
+      if (reason !== null) run(() => api.cancelTask(taskId, { expectedVersion: t.version, reason: reason.trim() || undefined }));
+    }
+  };
 
   return (
     <>
-      <section className="card">
-        <a href={back.href} className="hint">
-          ← {back.label}
-        </a>
-        <h1>
-          {t.title} <span className="tag">{taskStatusLabel[t.status]}</span>
+      {t.status === 'cancelled' && <Banner tone="danger">Việc này đã huỷ.</Banner>}
+      {t.acceptance === 'declined' && t.can.assign && <Banner tone="warn">{t.owner?.displayName ?? 'Người được giao'} đã từ chối{t.declineReason ? `: “${t.declineReason}”` : ''}. Hãy giao lại.</Banner>}
+      <section className="card hero">
+        <h1>{t.title}</h1>
+        <div className="tags">
+          <span className={t.status === 'done' ? 'tag ok' : t.status === 'in_progress' ? 'tag info' : 'tag'}>{taskStatusLabel[t.status]}</span>
           {t.blocked && <span className="tag warn">Bị chặn</span>}
           {t.needsHelp && <span className="tag warn">Cần giúp</span>}
           {t.overdue && <span className="tag warn">Quá hạn</span>}
-        </h1>
+        </div>
         {t.description && <p className="pre">{t.description}</p>}
-        <p className="hint">
-          {t.scope.type === 'private' ? 'Việc riêng' : t.scope.type === 'group' ? `Việc của nhóm ${t.scope.name ?? ''}` : `Việc của buổi ${t.scope.name ?? ''}`} · {dueText(t.dueAt)}
-          {t.dueOffsetMin !== null && ' (theo giờ buổi)'}
-        </p>
-        <p className="hint">
-          Phụ trách: {t.owner?.displayName ?? 'chưa giao'}
-          {t.acceptance === 'pending' && ' (chờ nhận)'}
-          {t.acceptance === 'declined' && ` (đã từ chối${t.declineReason ? `: ${t.declineReason}` : ''})`}
-          {t.assignedBy && ` · Giao bởi ${t.assignedBy.displayName}`} · Tạo bởi {t.createdBy.displayName}
-          {t.collaborators.length > 0 && ` · Cùng làm: ${t.collaborators.map((c) => c.displayName).join(', ')}`}
-        </p>
+        <ul className="facts">
+          <li>
+            <Icon name="user" size={18} />
+            <span>
+              Phụ trách: <strong>{t.owner?.displayName ?? 'chưa giao'}</strong>
+              {t.acceptance === 'pending' && ' (chờ nhận)'}
+              {t.acceptance === 'declined' && ' (đã từ chối)'}
+              {t.collaborators.length > 0 && ` · cùng làm: ${t.collaborators.map((c) => c.displayName).join(', ')}`}
+            </span>
+          </li>
+          <li>
+            <Icon name="clock" size={18} />
+            <span>
+              {t.dueAt ? `Hạn ${dayLabel(t.dueAt)} ${timeLabel(t.dueAt)}` : 'Không có hạn'}
+              {t.dueOffsetMin !== null && ' (theo giờ buổi)'}
+            </span>
+          </li>
+          <li>
+            <Icon name={t.scope.type === 'event' ? 'calendar' : t.scope.type === 'group' ? 'groups' : 'work'} size={18} />
+            <span>{scopeLink ? <a href={scopeLink.href}>{scopeLink.label}</a> : 'Việc riêng'}</span>
+          </li>
+          <li className="hint">
+            <Icon name="work" size={18} />
+            <span>
+              {t.assignedBy ? `Giao bởi ${t.assignedBy.displayName} · ` : ''}Tạo bởi {t.createdBy.displayName}
+            </span>
+          </li>
+        </ul>
         {t.source && (
           <p className="hint">
             Tạo từ tin nhắn:{' '}
@@ -180,91 +233,53 @@ export function TaskPage({ taskId, meId }: { taskId: string; meId: string }) {
         )}
         {act.error && <p className="error">{act.error}</p>}
 
-        <div className="row">
+        <div className="hero-actions">
           {t.can.respond && (
             <>
-              <button className="button small primary" disabled={act.busy} onClick={() => run(() => api.respondTask(taskId, { response: 'accept' }))}>
-                Nhận việc
-              </button>
               <button
-                className="button small"
+                className="button grow"
                 disabled={act.busy}
-                onClick={() => {
-                  const reason = window.prompt('Lý do từ chối (người giao sẽ thấy)');
+                onClick={async () => {
+                  const reason = await dialogs.prompt({ title: 'Từ chối việc này?', message: 'Người giao sẽ thấy lý do.', placeholder: 'Lý do', confirmLabel: 'Từ chối', danger: true });
                   if (reason !== null) run(() => api.respondTask(taskId, { response: 'decline', reason: reason.trim() || undefined }));
                 }}
               >
                 Từ chối
               </button>
-            </>
-          )}
-          {t.can.status && t.status === 'open' && (
-            <button className="button small" disabled={act.busy} onClick={() => run(() => api.taskStatus(taskId, { expectedVersion: t.version, status: 'in_progress' }))}>
-              Bắt đầu
-            </button>
-          )}
-          {t.can.status && open && (
-            <button className="button small primary" disabled={act.busy} onClick={() => run(() => api.taskStatus(taskId, { expectedVersion: t.version, status: 'done' }))}>
-              Xong
-            </button>
-          )}
-          {t.can.reopenCancel && t.status === 'done' && (
-            <button className="button small" disabled={act.busy} onClick={() => run(() => api.taskStatus(taskId, { expectedVersion: t.version, status: 'open' }))}>
-              Mở lại
-            </button>
-          )}
-          {t.can.flag && (
-            <>
-              <button className="button small" disabled={act.busy} onClick={() => run(() => api.taskFlags(taskId, { needsHelp: !t.needsHelp }))}>
-                {t.needsHelp ? 'Bỏ cờ cần giúp' : 'Cần giúp'}
-              </button>
-              <button className="button small" disabled={act.busy} onClick={() => run(() => api.taskFlags(taskId, { blocked: !t.blocked }))}>
-                {t.blocked ? 'Bỏ cờ bị chặn' : 'Bị chặn'}
+              <button className="button primary grow" disabled={act.busy} onClick={() => run(() => api.respondTask(taskId, { response: 'accept' }))}>
+                Nhận việc
               </button>
             </>
           )}
-          {t.can.edit && (
-            <button className="button small" onClick={() => setEditing((x) => !x)}>
-              {editing ? 'Đóng sửa' : 'Sửa'}
+          {!t.can.respond && t.can.status && open && (
+            <button className="button primary grow" disabled={act.busy} onClick={() => run(() => api.taskStatus(taskId, { expectedVersion: t.version, status: 'done' }))}>
+              Đánh dấu xong
             </button>
           )}
-          {t.can.reopenCancel && open && (
-            <button
-              className="button small danger"
-              disabled={act.busy}
-              onClick={() => {
-                const reason = window.prompt('Huỷ việc này? Lý do (không bắt buộc):', '');
-                if (reason !== null) run(() => api.cancelTask(taskId, { expectedVersion: t.version, reason: reason.trim() || undefined }));
-              }}
-            >
-              Huỷ việc
-            </button>
-          )}
-          {t.collaborators.some((c) => c.userId === meId) && open && (
-            <button className="button small" disabled={act.busy} onClick={() => run(() => api.taskCollaborators(taskId, { remove: [meId] }))}>
-              Thôi cùng làm
-            </button>
-          )}
+          <button className="button" onClick={() => void more()}>
+            <Icon name="more" size={18} /> Thao tác
+          </button>
         </div>
         <Follow eventId={taskId} type="task" label="Thông báo về việc này:" />
         {editing && <EditTask t={t} onSaved={() => (setEditing(false), task.reload())} />}
         {(t.can.assign || t.can.collaborators) && <People t={t} members={members.data ?? []} onChanged={task.reload} />}
       </section>
 
-      <Related type="task" id={taskId} topic={`task:${taskId}`} canLink={t.can.edit} />
-      <History type="task" id={taskId} topic={`task:${taskId}`} />
-      <Files owner="tasks" id={taskId} orgId={t.orgId} topic={`task:${taskId}`} canAdd={t.can.flag} meId={meId} />
+      {t.conversationId ? (
+        <ChatLink conversationId={t.conversationId} label="Trao đổi về việc này" />
+      ) : (
+        <button
+          className="button"
+          disabled={act.busy}
+          onClick={() => void act.run(() => api.openTaskConversation(taskId), (r) => go({ name: 'chat', id: r.conversationId }))}
+        >
+          <Icon name="chats" size={18} /> Bắt đầu trao đổi
+        </button>
+      )}
 
-      <section className="card">
-        <h2>Trao đổi về việc này</h2>
-        {t.conversationId ? (
-          <ChatPanel key={t.conversationId} conversationId={t.conversationId} meId={meId} members={[t.owner, t.assignedBy, t.createdBy, ...t.collaborators].filter((x): x is NonNullable<typeof x> => !!x)} />
-        ) : (
-          <button className="button small" disabled={act.busy} onClick={() => run(() => api.openTaskConversation(taskId))}>
-            Bắt đầu trao đổi
-          </button>
-        )}
-      </section>
+      <Related type="task" id={taskId} topic={`task:${taskId}`} canLink={t.can.edit} />
+      <Files owner="tasks" id={taskId} orgId={t.orgId} topic={`task:${taskId}`} canAdd={t.can.flag} meId={meId} />
+      <History type="task" id={taskId} topic={`task:${taskId}`} />
     </>
   );
 }

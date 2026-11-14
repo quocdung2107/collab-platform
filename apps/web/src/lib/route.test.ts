@@ -11,6 +11,7 @@ describe('parseRoute', () => {
       { name: 'inbox' },
       { name: 'settings' },
       { name: 'event', id: '01a1d7cf-0000-7000-8000-000000000002' },
+      { name: 'chat', id: '01a1d7cf-0000-7000-8000-000000000003' },
       { name: 'newevent', id: '01a1d7cf-0000-7000-8000-000000000000' },
       { name: 'newevent', id: '01a1d7cf-0000-7000-8000-000000000000', copy: '01a1d7cf-0000-7000-8000-000000000002' },
     ] as const) {
@@ -44,11 +45,11 @@ describe('HashTrail', () => {
   it('đi tới rồi lùi bằng cử chỉ hệ điều hành', () => {
     const t = new HashTrail('#');
     expect(t.canGoBack()).toBe(false);
-    t.visit('#calendar');
+    expect(t.visit('#calendar')).toBe('forward');
     t.visit('#event=1');
     expect(t.canGoBack()).toBe(true);
-    t.visit('#calendar'); // lùi
-    t.visit('#'); // lùi
+    expect(t.visit('#calendar')).toBe('back');
+    expect(t.visit('#')).toBe('back');
     expect(t.canGoBack()).toBe(false);
   });
   it('location.replace không thêm bước', () => {

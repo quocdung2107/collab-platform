@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, type NotificationPrefs } from '../lib/api';
 import { useAction, useLoad } from '../lib/useLoad';
+import { Skeleton, Switch } from '../ui/kit';
 import { pushState, turnOffPush, turnOnPush, type PushState } from '../lib/webpush';
 
 /** Cài đặt thông báo (F11b, NOTIFICATION_ENGINE §7): thiết bị này + công tắc đẩy + giờ yên lặng. */
@@ -32,13 +33,13 @@ function DevicePush() {
       {state?.kind === 'server_disabled' && <p className="hint">Máy chủ chưa bật thông báo đẩy. Mọi thông báo vẫn có trong mục Thông báo.</p>}
       {state?.kind === 'denied' && <p>Bạn đã chặn thông báo cho ứng dụng. Mở Cài đặt của máy/trình duyệt → Thông báo → cho phép Collab.</p>}
       {state?.kind === 'off' && (
-        <button className="button" disabled={act.busy} onClick={() => act.run(turnOnPush, reload)}>
+        <button className="button primary" disabled={act.busy} onClick={() => act.run(turnOnPush, reload)}>
           Bật thông báo trên máy này
         </button>
       )}
       {state?.kind === 'on' && (
-        <div className="row">
-          <span>Đang bật ✓</span>
+        <div className="row spread">
+          <span className="tag ok">Đang bật trên máy này</span>
           <button className="button small" disabled={act.busy} onClick={() => act.run(turnOffPush, reload)}>
             Tắt trên máy này
           </button>
@@ -57,30 +58,26 @@ function Preferences() {
   useEffect(() => {
     setDraft(prefs.data);
   }, [prefs.data]);
-  if (!draft) return <section className="card">{prefs.error ? <p className="error">{prefs.error}</p> : 'Đang tải…'}</section>;
+  if (!draft) return prefs.error ? <p className="error">{prefs.error}</p> : <Skeleton rows={3} />;
   const set = (p: Partial<NotificationPrefs>) => setDraft({ ...draft, ...p });
   const dirty = JSON.stringify(draft) !== JSON.stringify(prefs.data);
 
   return (
     <section className="card">
       <h2>Khi nào đẩy thông báo</h2>
-      <label className="row">
-        <input type="checkbox" checked={draft.pushActionRequired} onChange={(e) => set({ pushActionRequired: e.target.checked })} /> Việc cần bạn trả lời
-      </label>
-      <label className="row">
-        <input type="checkbox" checked={draft.pushDirect} onChange={(e) => set({ pushDirect: e.target.checked })} /> Cập nhật liên quan tới bạn và tin nhắn
-      </label>
-      <label className="row">
-        <input type="checkbox" checked={draft.quietHoursEnabled} onChange={(e) => set({ quietHoursEnabled: e.target.checked })} /> Giờ yên lặng
-      </label>
-      {draft.quietHoursEnabled && (
-        <div className="row">
-          từ <input type="time" value={draft.quietStart} onChange={(e) => set({ quietStart: e.target.value })} /> đến{' '}
-          <input type="time" value={draft.quietEnd} onChange={(e) => set({ quietEnd: e.target.value })} />
-        </div>
-      )}
+      <div className="switch-list">
+        <Switch checked={draft.pushActionRequired} onChange={(v) => set({ pushActionRequired: v })} label="Việc cần bạn trả lời" />
+        <Switch checked={draft.pushDirect} onChange={(v) => set({ pushDirect: v })} label="Cập nhật liên quan tới bạn và tin nhắn" />
+        <Switch checked={draft.quietHoursEnabled} onChange={(v) => set({ quietHoursEnabled: v })} label="Giờ yên lặng" />
+        {draft.quietHoursEnabled && (
+          <div className="row quiet-hours">
+            Từ <input type="time" aria-label="Bắt đầu giờ yên lặng" value={draft.quietStart} onChange={(e) => set({ quietStart: e.target.value })} /> đến{' '}
+            <input type="time" aria-label="Kết thúc giờ yên lặng" value={draft.quietEnd} onChange={(e) => set({ quietEnd: e.target.value })} />
+          </div>
+        )}
+      </div>
       <p className="hint">Trong giờ yên lặng không đẩy gì; hết giờ bạn nhận một thông báo tóm tắt. Ngoại lệ: việc cần bạn cho buổi bắt đầu sớm (trong vòng 2 giờ sau khi hết giờ yên lặng).</p>
-      <button className="button" disabled={!dirty || act.busy} onClick={() => act.run(() => api.saveNotificationPrefs(draft), (r) => (setDraft(r), prefs.reload()))}>
+      <button className="button primary" disabled={!dirty || act.busy} onClick={() => act.run(() => api.saveNotificationPrefs(draft), (r) => (setDraft(r), prefs.reload()))}>
         Lưu
       </button>
       {act.error && <p className="error">{act.error}</p>}
