@@ -1,6 +1,7 @@
-import type { ConversationSummaryDto, GroupMemberDto, MessageDto } from '@collab/shared';
+import type { ConversationSummaryDto, GroupMemberDto, MessageDto, ObjectCardDto } from '@collab/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, ApiError, errorText } from '../lib/api';
+import { api, ApiError, errorText, type UploadedFile } from '../lib/api';
+import { openAttachment, sizeLabel, uploadFile } from '../lib/files';
 import { useRealtime } from '../lib/realtime';
 
 interface Pending {
@@ -8,6 +9,7 @@ interface Pending {
   body: string;
   replyToId?: string;
   mentionIds: string[];
+  attachments?: UploadedFile[];
   failed: boolean;
 }
 
@@ -33,7 +35,7 @@ const pendingStore = {
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
-export function ChatPanel({ conversationId, meId, members }: { conversationId: string; meId: string; members: GroupMemberDto[] }) {
+export function ChatPanel({ conversationId, meId, members }: { conversationId: string; meId: string; members: Array<Pick<GroupMemberDto, 'userId' | 'displayName'>> }) {
   const [conv, setConv] = useState<ConversationSummaryDto | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -72,7 +74,10 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
     void refresh().then((p) => p && setHasMore(p.hasMore));
   }, [refresh]);
   useRealtime([`conversation:${conversationId}`], () => void refresh());
-  useEffect(() => bottom.current?.scrollIntoView({ block: 'end' }), [messages.length, pending.length]);
+  // Thân hàm có ngoặc: Chrome mới trả Promise từ scrollIntoView; effect trả Promise làm React gọi nó như hàm dọn → sập trang (trang trắng).
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ block: 'end' });
+  }, [messages.length, pending.length]);
 
   const updatePending = useCallback(
     (fn: (cur: Pending[]) => Pending[]) =>
@@ -137,6 +142,26 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
     void flush([...pendingStore.load(conversationId)]);
   };
 
+  const [uploading, setUploading] = useState(false);
+  const attach = async (file: File) => {
+    if (!conv) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const f = await uploadFile(conv.orgId, file);
+      const body = text.trim() || `📎 ${file.name}`;
+      const p: Pending = { clientMsgId: crypto.randomUUID(), body, replyToId: replyTo?.id, mentionIds: [], attachments: [f], failed: false };
+      updatePending((cur) => [...cur, p]);
+      setText('');
+      setReplyTo(null);
+      void flush([...pendingStore.load(conversationId)]);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const loadOlder = async () => {
     const first = messages[0];
     if (!first) return;
@@ -156,6 +181,17 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
     }
   };
 
+  // F10: tạo Task từ tin (phạm vi theo hội thoại); tiêu đề điền sẵn từ nội dung, người tạo sửa được.
+  const makeTask = async (m: MessageDto) => {
+    const title = window.prompt('Tên việc', (m.body ?? '').slice(0, 120));
+    if (!title?.trim()) return;
+    try {
+      const t = await api.createTask({ title: title.trim(), sourceMessageId: m.id });
+      window.location.hash = `#task=${t.id}`;
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
   const remove = async (m: MessageDto) => {
     if (!window.confirm('Xoá tin nhắn này? Không khôi phục được.')) return;
     try {
@@ -180,7 +216,7 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
         {messages.map((m) => {
           const mine = m.senderId === meId;
           return (
-            <li key={m.id} className={mine ? 'msg mine' : 'msg'}>
+            <li key={m.id} className={m.kind === 'system' ? 'msg system' : mine ? 'msg mine' : 'msg'}>
               <div className="meta">
                 <strong>{m.kind === 'system' ? 'Hệ thống' : m.senderName}</strong> <span className="hint">{time(m.createdAt)}</span>
                 {m.editedAt && !m.deleted && <span className="hint"> · đã sửa</span>}
@@ -191,6 +227,16 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
                 </div>
               )}
               {m.deleted ? <em className="hint">Tin nhắn đã bị xoá</em> : <div className="body">{m.body}</div>}
+              {m.attachments.length > 0 && (
+                <div className="cards">
+                  {m.attachments.map((a) => (
+                    <button key={a.id} className="tag link" onClick={() => void openAttachment(a.id).catch((e) => setError(errorText(e)))}>
+                      📎 {a.filename} <span className="hint">· {sizeLabel(a.sizeBytes)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {m.cards.length > 0 && <Cards cards={m.cards} />}
               {!m.deleted && m.kind === 'user' && !readOnly && (
                 <div className="row actions">
                   <button className="link" onClick={() => setReplyTo(m)}>
@@ -203,6 +249,9 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
                   )}
                   <button className="link" onClick={() => void remove(m)}>
                     Xoá
+                  </button>
+                  <button className="link" onClick={() => void makeTask(m)}>
+                    Tạo việc
                   </button>
                 </div>
               )}
@@ -276,12 +325,40 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
                 ))}
               </select>
             )}
+            <label className="button small">
+              {uploading ? 'Đang tải…' : '📎 Tệp'}
+              <input
+                type="file"
+                hidden
+                disabled={uploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (f) void attach(f);
+                }}
+              />
+            </label>
             <button className="button primary" disabled={!text.trim()}>
               Gửi
             </button>
           </div>
         </form>
       )}
+    </div>
+  );
+}
+
+/** Thẻ đối tượng dưới tin (CONTEXT_ENGINE §5): không xem được → "Nội dung bị giới hạn". */
+export function Cards({ cards }: { cards: ObjectCardDto[] }) {
+  return (
+    <div className="cards">
+      {cards.map((c) => (
+        <span key={`${c.relation}:${c.type}:${c.id}`} className="tag">
+          {c.relation === 'created_from' ? 'Việc từ tin này: ' : ''}
+          {c.available ? <a href={`#${c.type}=${c.id}`}>{c.title}</a> : 'Nội dung bị giới hạn'}
+          {c.available && c.subtitle ? <span className="hint"> · {c.subtitle}</span> : null}
+        </span>
+      ))}
     </div>
   );
 }

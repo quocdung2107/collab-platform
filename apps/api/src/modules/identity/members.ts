@@ -1,3 +1,4 @@
+import { releaseMemberFromTasks } from '../tasks/hooks.js';
 import type { OrgRole } from '@collab/shared';
 import type { CommandCtx } from '../../http/command.js';
 import { AppError } from '../../http/errors.js';
@@ -5,6 +6,7 @@ import { notFound } from '../../http/validate.js';
 import { assertAllowed } from '../access/authorize.js';
 import { can } from '../access/can.js';
 import { emit, signalAccessChanged } from '../activity/emit.js';
+import { releaseMemberFromScheduling } from '../scheduling/membership.js';
 import { topics } from '../realtime/publisher.js';
 import { viewOrg } from './organizations.js';
 
@@ -52,8 +54,9 @@ export async function changeMemberRole(ctx: CommandCtx, orgId: string, targetId:
  * Gỡ thành viên (bySelf = false) hoặc rời tổ chức (bySelf = true) — PERMISSION_MODEL §7.
  * Hệ quả đã có trong lát cắt này: gỡ khỏi mọi Group (sự kiện con group.member_removed), Membership → removed,
  * tín hiệu access_changed (AD-31).
- * TODO(F4–F8): huỷ Assignment tương lai (member_left), bỏ owner Task chưa xong, gỡ event_owners,
- * task_collaborators, Subscription, thiết bị đẩy — thêm vào đây khi các bảng đó tồn tại.
+ * Lịch: huỷ Assignment tương lai (member_left), gỡ event_owners, xoá Subscription (S7).
+ * Task: bỏ owner Task chưa xong (task.assigned về rỗng), gỡ task_collaborators (S10). Đẩy (S12): thiết bị gắn người dùng, không gắn tổ chức → giữ;
+ * delivery chưa gửi về đối tượng của tổ chức này bị skipped lúc gửi vì kiểm tra quyền xem (NOTIFICATION_ENGINE §8.6).
  */
 export async function removeMember(ctx: CommandCtx, orgId: string, targetId: string, bySelf: boolean) {
   const { actor } = await viewOrg(ctx.tx, ctx.user.id, orgId, true);
@@ -95,6 +98,9 @@ export async function removeMember(ctx: CommandCtx, orgId: string, targetId: str
       [topics.group(g.group_id)],
     );
   }
+
+  await releaseMemberFromScheduling(ctx, orgId, targetId, rootId);
+  await releaseMemberFromTasks(ctx, orgId, targetId, rootId);
 
   await ctx.tx.query(
     `update app.memberships set status = 'removed', removed_at = now(), removed_by = $3 where org_id = $1 and user_id = $2`,

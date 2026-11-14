@@ -38,4 +38,6 @@ export const topics = {
   user: (userId: string) => `user:${userId}`,
   group: (groupId: string) => `group:${groupId}`,
   conversation: (conversationId: string) => `conversation:${conversationId}`,
+  event: (eventId: string) => `event:${eventId}`,
+  task: (taskId: string) => `task:${taskId}`,
 };
