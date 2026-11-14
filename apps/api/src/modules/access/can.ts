@@ -7,8 +7,8 @@ import type { GroupRole, OrgRole } from '@collab/shared';
  * trả về quyết định. Không truy vấn DB ở đây để dễ kiểm thử theo ma trận; việc nạp ngữ cảnh
  * nằm ở context.ts.
  *
- * Phạm vi hiện tại: Organization (§4.1), Group (§4.2), Conversation/Message (§4.3, anchor group).
- * Event, Assignment, Task được thêm theo từng lát cắt.
+ * Phạm vi hiện tại: Organization (§4.1), Group (§4.2), Conversation/Message (§4.3, anchor group/event),
+ * Event/Position/Assignment (§3, §4.4, §4.5). Task được thêm ở lát S10.
  */
 
 /** Ngữ cảnh của người dùng trong MỘT tổ chức. orgRole = null nghĩa là không có Membership active. */
@@ -36,12 +36,39 @@ export type GroupObject = {
   leaderCount?: number;
 };
 
-/** Hội thoại (§4.3). Lát S4 chỉ có anchor group; event/task thêm khi có module tương ứng. */
+/** Event (§3 view(event), §4.4). Danh sách nhỏ nên mang theo để can() là hàm thuần. */
+export type EventObject = {
+  type: 'event';
+  id: string;
+  orgId: string;
+  status: 'draft' | 'published' | 'cancelled';
+  visibility: 'org' | 'groups';
+  groupIds: readonly string[];
+  ownerIds: readonly string[];
+  /** Người có Assignment đang hiệu lực (requested/accepted/reconfirm) — xem được Event visibility = groups. */
+  activeAssigneeIds: readonly string[];
+};
+
+/** Tạo Event: chưa có id; cần nhóm dự kiến để kiểm tra leader (§4.4). */
+export type EventDraftObject = { type: 'event_draft'; orgId: string; groupIds: readonly string[] };
+
+export type PositionObject = { type: 'position'; id: string | null; orgId: string; event: EventObject; groupId: string | null };
+
+export type AssignmentObject = {
+  type: 'assignment';
+  id: string;
+  orgId: string;
+  position: PositionObject;
+  userId: string;
+  status: 'draft' | 'requested' | 'accepted' | 'declined' | 'reconfirm' | 'cancelled';
+};
+
+/** Hội thoại (§4.3): anchor group (S4) hoặc event (S5); task thêm ở S10. */
 export type ConversationObject = {
   type: 'conversation';
   id: string;
   orgId: string;
-  anchor: { type: 'group'; id: string };
+  anchor: { type: 'group'; id: string } | { type: 'event'; id: string; event: EventObject };
   readOnly: boolean;
 };
 
@@ -57,6 +84,11 @@ export type MessageObject = {
 
 export type ConversationAction = 'conversation.read' | 'conversation.post';
 export type MessageAction = 'message.edit' | 'message.delete';
+
+export type EventAction = 'event.view' | 'event.edit';
+export type EventDraftAction = 'event.create';
+export type PositionAction = 'position.manage';
+export type AssignmentAction = 'assignment.view' | 'assignment.view_decline_reason';
 
 export type OrgAction =
   | 'org.view'
@@ -97,10 +129,14 @@ export function can(actor: ActorContext, action: OrgAction, object: OrgObject): 
 export function can(actor: ActorContext, action: GroupAction, object: GroupObject): Decision;
 export function can(actor: ActorContext, action: ConversationAction, object: ConversationObject): Decision;
 export function can(actor: ActorContext, action: MessageAction, object: MessageObject): Decision;
+export function can(actor: ActorContext, action: EventAction, object: EventObject): Decision;
+export function can(actor: ActorContext, action: EventDraftAction, object: EventDraftObject): Decision;
+export function can(actor: ActorContext, action: PositionAction, object: PositionObject): Decision;
+export function can(actor: ActorContext, action: AssignmentAction, object: AssignmentObject): Decision;
 export function can(
   actor: ActorContext,
-  action: OrgAction | GroupAction | ConversationAction | MessageAction,
-  object: OrgObject | GroupObject | ConversationObject | MessageObject,
+  action: OrgAction | GroupAction | ConversationAction | MessageAction | EventAction | EventDraftAction | PositionAction | AssignmentAction,
+  object: OrgObject | GroupObject | ConversationObject | MessageObject | EventObject | EventDraftObject | PositionObject | AssignmentObject,
 ): Decision {
   const orgId = object.type === 'organization' ? object.id : object.orgId;
   // Mọi vai trò đòi hỏi Membership active trong đúng tổ chức của đối tượng (PERMISSION_MODEL §2).
@@ -109,12 +145,67 @@ export function can(
   if (object.type === 'organization') return canOrg(actor, action as OrgAction, object);
   if (object.type === 'group') return canGroup(actor, action as GroupAction, object);
   if (object.type === 'conversation') return canConversation(actor, action as ConversationAction, object);
-  return canMessage(actor, action as MessageAction, object);
+  if (object.type === 'message') return canMessage(actor, action as MessageAction, object);
+  if (object.type === 'event') return canEvent(actor, action as EventAction, object);
+  if (object.type === 'event_draft') return canCreateEvent(actor, object);
+  if (object.type === 'position') return canPosition(actor, object);
+  return canAssignment(actor, action as AssignmentAction, object);
 }
 
-/** read(conversation): anchor group → là thành viên nhóm (AD-11: org admin ngoài nhóm cũng không đọc). */
+const isEventOwner = (a: ActorContext, e: EventObject) => e.ownerIds.includes(a.userId);
+const leadsAnyOf = (a: ActorContext, groupIds: readonly string[]) => groupIds.some((g) => a.groupRoles.get(g) === 'leader');
+
+/** view(event) — PERMISSION_MODEL §3. */
+export function viewsEvent(a: ActorContext, e: EventObject): boolean {
+  if (isOrgAdmin(a) || isEventOwner(a, e)) return true;
+  if (e.status === 'draft') return leadsAnyOf(a, e.groupIds);
+  if (e.visibility === 'org') return true;
+  return e.groupIds.some((g) => a.groupRoles.has(g)) || e.activeAssigneeIds.includes(a.userId);
+}
+
+function canEvent(actor: ActorContext, action: EventAction, e: EventObject): Decision {
+  if (!viewsEvent(actor, e)) return hidden('cannot view event');
+  switch (action) {
+    case 'event.view':
+      return ALLOW;
+    case 'event.edit':
+      // Sửa, publish, dời lịch, huỷ, owner, event_groups, visibility, xoá nháp (§4.4).
+      return isOrgAdmin(actor) || isEventOwner(actor, e) ? ALLOW : forbidden('requires org admin or event owner');
+  }
+}
+
+function canCreateEvent(actor: ActorContext, d: EventDraftObject): Decision {
+  if (isOrgAdmin(actor) || leadsAnyOf(actor, d.groupIds)) return ALLOW;
+  return forbidden('requires org admin or leader of an event group');
+}
+
+/** position_manager = event_owner ∪ org admin ∪ leader của positions.group_id (§2). */
+export function managesPosition(a: ActorContext, p: PositionObject): boolean {
+  return isOrgAdmin(a) || isEventOwner(a, p.event) || (p.groupId !== null && a.groupRoles.get(p.groupId) === 'leader');
+}
+
+function canPosition(actor: ActorContext, p: PositionObject): Decision {
+  if (!viewsEvent(actor, p.event)) return hidden('cannot view event');
+  if (p.event.status === 'cancelled') return forbidden('event cancelled');
+  return managesPosition(actor, p) ? ALLOW : forbidden('requires position manager');
+}
+
+function canAssignment(actor: ActorContext, action: AssignmentAction, a: AssignmentObject): Decision {
+  if (!viewsEvent(actor, a.position.event)) return hidden('cannot view event');
+  const manager = managesPosition(actor, a.position);
+  switch (action) {
+    case 'assignment.view':
+      // Assignment draft chỉ position_manager thấy (§3).
+      return a.status !== 'draft' || manager ? ALLOW : hidden('draft assignment');
+    case 'assignment.view_decline_reason':
+      return manager || a.userId === actor.userId ? ALLOW : forbidden('restricted field');
+  }
+}
+
+/** read(conversation): anchor group → thành viên nhóm (AD-11); anchor event → view(event). */
 function readsConversation(actor: ActorContext, c: ConversationObject): boolean {
-  return actor.groupRoles.has(c.anchor.id);
+  if (c.anchor.type === 'group') return actor.groupRoles.has(c.anchor.id);
+  return viewsEvent(actor, c.anchor.event);
 }
 
 function canConversation(actor: ActorContext, action: ConversationAction, c: ConversationObject): Decision {
@@ -138,9 +229,11 @@ function canMessage(actor: ActorContext, action: MessageAction, m: MessageObject
       if (!own) return forbidden('only the sender edits');
       return c.readOnly ? readOnly('conversation is read-only') : ALLOW;
     case 'message.delete':
-      // Người gửi; leader của nhóm anchor; org admin nếu đọc được hội thoại (§4.3).
-      if (own || actor.groupRoles.get(c.anchor.id) === 'leader' || isOrgAdmin(actor)) return ALLOW;
-      return forbidden('requires sender, group leader or org admin');
+      // Người gửi; leader (hội thoại nhóm) / event_owner (thread Event); org admin nếu đọc được hội thoại (§4.3).
+      if (own || isOrgAdmin(actor)) return ALLOW;
+      if (c.anchor.type === 'group' && actor.groupRoles.get(c.anchor.id) === 'leader') return ALLOW;
+      if (c.anchor.type === 'event' && isEventOwner(actor, c.anchor.event)) return ALLOW;
+      return forbidden('requires sender, group leader, event owner or org admin');
   }
 }
 

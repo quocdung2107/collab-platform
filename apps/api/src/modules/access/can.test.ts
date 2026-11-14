@@ -1,6 +1,6 @@
 import type { GroupRole, OrgRole } from '@collab/shared';
 import { describe, expect, it } from 'vitest';
-import { can, type ActorContext, type ConversationObject, type GroupAction, type GroupObject, type MessageObject, type OrgAction, type OrgObject } from './can.js';
+import { can, type ActorContext, type AssignmentObject, type ConversationObject, type EventObject, type PositionObject, type GroupAction, type GroupObject, type MessageObject, type OrgAction, type OrgObject } from './can.js';
 
 const ORG = 'org-1';
 const GROUP = 'grp-1';
@@ -115,5 +115,57 @@ describe('PERMISSION_MODEL §4.3 Conversation / Message (anchor group)', () => {
   it('tin system không sửa/xoá được; tin đã xoá không sửa được', () => {
     expect(outcome(can(me('owner', 'leader'), 'message.delete', msg(null, { kind: 'system' })))).toBe('F');
     expect(outcome(can(me('member', 'member'), 'message.edit', msg('me', { deleted: true })))).toBe('F');
+  });
+});
+
+describe('PERMISSION_MODEL §3, §4.4, §4.5 Event, Position, Assignment', () => {
+  const OTHER = 'grp-2';
+  const ev = (extra: Partial<EventObject> = {}): EventObject => ({
+    type: 'event', id: 'e-1', orgId: ORG, status: 'published', visibility: 'org', groupIds: [GROUP], ownerIds: [], activeAssigneeIds: [], ...extra,
+  });
+  const pos = (groupId: string | null, e = ev()): PositionObject => ({ type: 'position', id: 'p-1', orgId: ORG, event: e, groupId });
+  const asg = (userId: string, status: AssignmentObject['status'], p = pos(GROUP)): AssignmentObject => ({ type: 'assignment', id: 'a-1', orgId: ORG, position: p, userId, status });
+  const owner: ActorContext = { ...actor('member'), userId: 'ow' };
+
+  it('view: bản nháp chỉ admin, owner, leader nhóm trong event_groups', () => {
+    const d = ev({ status: 'draft', ownerIds: ['ow'] });
+    expect(outcome(can(actor('admin'), 'event.view', d))).toBe('Y');
+    expect(outcome(can(owner, 'event.view', d))).toBe('Y');
+    expect(outcome(can(actor('member', 'leader'), 'event.view', d))).toBe('Y');
+    expect(outcome(can(actor('member', 'member'), 'event.view', d))).toBe('N');
+  });
+  it('view: visibility groups → thành viên nhóm hoặc người được xếp (đang hiệu lực)', () => {
+    const g = ev({ visibility: 'groups' });
+    expect(outcome(can(actor('member', 'member'), 'event.view', g))).toBe('Y');
+    expect(outcome(can(actor('member'), 'event.view', g))).toBe('N');
+    expect(outcome(can(actor('member'), 'event.view', ev({ visibility: 'groups', activeAssigneeIds: ['u'] })))).toBe('Y');
+    expect(outcome(can(actor('member'), 'event.view', ev()))).toBe('Y');
+    expect(outcome(can(actor('admin', undefined, 'org-2'), 'event.view', ev()))).toBe('N');
+  });
+  it('edit: admin hoặc event_owner; leader thì không', () => {
+    expect(outcome(can(owner, 'event.edit', ev({ ownerIds: ['ow'] })))).toBe('Y');
+    expect(outcome(can(actor('admin'), 'event.edit', ev()))).toBe('Y');
+    expect(outcome(can(actor('member', 'leader'), 'event.edit', ev()))).toBe('F');
+  });
+  it('tạo: admin hoặc leader của một nhóm trong Event', () => {
+    expect(outcome(can(actor('member', 'leader'), 'event.create', { type: 'event_draft', orgId: ORG, groupIds: [GROUP] }))).toBe('Y');
+    expect(outcome(can(actor('member', 'leader'), 'event.create', { type: 'event_draft', orgId: ORG, groupIds: [OTHER] }))).toBe('F');
+    expect(outcome(can(actor('member', 'member'), 'event.create', { type: 'event_draft', orgId: ORG, groupIds: [GROUP] }))).toBe('F');
+    expect(outcome(can(actor('admin'), 'event.create', { type: 'event_draft', orgId: ORG, groupIds: [] }))).toBe('Y');
+  });
+  it('position.manage: owner, admin, leader đúng nhóm của Position; Event huỷ → forbidden', () => {
+    expect(outcome(can(actor('member', 'leader'), 'position.manage', pos(GROUP)))).toBe('Y');
+    expect(outcome(can(actor('member', 'leader'), 'position.manage', pos(OTHER, ev({ groupIds: [GROUP, OTHER] }))))).toBe('F');
+    expect(outcome(can(actor('member', 'leader'), 'position.manage', pos(null)))).toBe('F');
+    expect(outcome(can(owner, 'position.manage', pos(null, ev({ ownerIds: ['ow'] }))))).toBe('Y');
+    expect(outcome(can(actor('member', 'member'), 'position.manage', pos(GROUP)))).toBe('F');
+    expect(outcome(can(actor('admin'), 'position.manage', pos(GROUP, ev({ status: 'cancelled' }))))).toBe('F');
+  });
+  it('Assignment draft ẩn với người không quản lý; lý do từ chối chỉ người quản lý và chính người được xếp', () => {
+    expect(outcome(can(actor('member', 'member'), 'assignment.view', asg('x', 'draft')))).toBe('N');
+    expect(outcome(can(actor('member', 'member'), 'assignment.view', asg('x', 'requested')))).toBe('Y');
+    expect(outcome(can(actor('member', 'member'), 'assignment.view_decline_reason', asg('x', 'declined')))).toBe('F');
+    expect(outcome(can(actor('member', 'member'), 'assignment.view_decline_reason', asg('u', 'declined')))).toBe('Y');
+    expect(outcome(can(actor('member', 'leader'), 'assignment.view_decline_reason', asg('x', 'declined')))).toBe('Y');
   });
 });

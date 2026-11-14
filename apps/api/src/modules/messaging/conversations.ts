@@ -5,21 +5,22 @@ import { AppError } from '../../http/errors.js';
 import { notFound } from '../../http/validate.js';
 import { normalizeText } from '../../lib/text.js';
 import { assertAllowed } from '../access/authorize.js';
-import { can, type ConversationObject, type MessageObject } from '../access/can.js';
+import { can, type ConversationObject, type EventObject, type MessageObject } from '../access/can.js';
 import { loadActorContext } from '../access/context.js';
 import { emit } from '../activity/emit.js';
 import { viewOrg } from '../identity/organizations.js';
 import { topics } from '../realtime/publisher.js';
+import { EVENT_COLS, eventObjects, type EventRow } from '../scheduling/access.js';
 
 /**
  * Module Messaging (F9, PERMISSION_MODEL §4.3, EVENT_API_CONTRACTS §5.8).
- * Lát S4: hội thoại anchor = group. Mỗi nhóm đúng một hội thoại, tạo cùng lúc với nhóm.
+ * Anchor group (S4): mỗi nhóm đúng một hội thoại, tạo cùng nhóm. Anchor event (S5): thread của Event, tạo khi publish.
  */
 
 interface ConvRow {
   id: string;
   org_id: string;
-  anchor_type: 'group';
+  anchor_type: 'group' | 'event';
   anchor_id: string;
   anchor_name: string;
   last_seq: string;
@@ -28,18 +29,39 @@ interface ConvRow {
 }
 
 const CONV_SELECT = `
-  select c.id, c.org_id, c.anchor_type, c.anchor_id, g.name as anchor_name, c.last_seq, c.last_message_at, c.read_only
+  select c.id, c.org_id, c.anchor_type, c.anchor_id, coalesce(g.name, e.title) as anchor_name, c.last_seq, c.last_message_at, c.read_only
     from app.conversations c
-    join app.groups g on g.id = c.anchor_id and c.anchor_type = 'group'
+    left join app.groups g on g.id = c.anchor_id and c.anchor_type = 'group'
+    left join app.events e on e.id = c.anchor_id and c.anchor_type = 'event'
     join app.organizations o on o.id = c.org_id and o.deleted_at is null`;
 
-const toObject = (c: ConvRow): ConversationObject => ({
-  type: 'conversation',
-  id: c.id,
-  orgId: c.org_id,
-  anchor: { type: 'group', id: c.anchor_id },
-  readOnly: c.read_only,
-});
+/** Dựng ConversationObject; anchor event cần EventObject để tính view(event). */
+async function toObjects(db: Queryable, convs: ConvRow[]): Promise<Map<string, ConversationObject>> {
+  const eventRows = convs.filter((c) => c.anchor_type === 'event').map((c) => c.anchor_id);
+  const events = eventRows.length
+    ? await eventObjects(db, (await db.query<EventRow>(`select ${EVENT_COLS} from app.events where id = any($1::uuid[])`, [eventRows])).rows)
+    : new Map<string, EventObject>();
+  return new Map(
+    convs.map((c) => [
+      c.id,
+      {
+        type: 'conversation' as const,
+        id: c.id,
+        orgId: c.org_id,
+        anchor: c.anchor_type === 'group' ? { type: 'group' as const, id: c.anchor_id } : { type: 'event' as const, id: c.anchor_id, event: events.get(c.anchor_id)! },
+        readOnly: c.read_only,
+      },
+    ]),
+  );
+}
+
+/** Thread của Event, tạo khi publish (EVENT_API_CONTRACTS §5.1). */
+export async function ensureEventConversation(tx: Tx, orgId: string, eventId: string) {
+  await tx.query(
+    `insert into app.conversations (org_id, anchor_type, anchor_id) values ($1, 'event', $2) on conflict (anchor_type, anchor_id) do nothing`,
+    [orgId, eventId],
+  );
+}
 
 /** Tạo hội thoại cho nhóm (gọi trong giao dịch tạo nhóm). */
 export async function ensureGroupConversation(tx: Tx, orgId: string, groupId: string) {
@@ -59,7 +81,7 @@ async function loadConversation(db: Queryable, userId: string, conversationId: s
   const conv = r.rows[0];
   if (!conv) throw notFound();
   const actor = await loadActorContext(db, userId, conv.org_id);
-  const obj = toObject(conv);
+  const obj = (await toObjects(db, [conv])).get(conv.id)!;
   assertAllowed(can(actor, 'conversation.read', obj));
   return { conv, actor, obj };
 }
@@ -73,7 +95,7 @@ async function summaries(db: Queryable, userId: string, where: string, params: u
             c.id`)}
        left join app.conversation_states s on s.conversation_id = c.id and s.user_id = $1
       where ${where}
-      order by c.last_message_at desc nulls last, g.name_norm`,
+      order by c.last_message_at desc nulls last, coalesce(g.name_norm, e.title_norm)`,
     [userId, ...params],
   );
   return r.rows.map((c) => ({
@@ -88,15 +110,25 @@ async function summaries(db: Queryable, userId: string, where: string, params: u
   }));
 }
 
-/** Tab Chat: hội thoại của các nhóm người dùng là thành viên (DATA_MODEL §3.5). */
+/**
+ * Tab Chat (DATA_MODEL §3.5): hội thoại của các nhóm người dùng là thành viên, cộng hội thoại có
+ * conversation_states của họ (thread Event đã mở/gửi) mà họ còn quyền đọc.
+ */
 export async function listConversations(db: Queryable, userId: string, orgId: string) {
-  await viewOrg(db, userId, orgId);
-  return summaries(
+  const { actor } = await viewOrg(db, userId, orgId);
+  const all = await summaries(
     db,
     userId,
-    `c.org_id = $2 and exists (select 1 from app.group_members gm where gm.group_id = c.anchor_id and gm.user_id = $1)`,
+    `c.org_id = $2 and (
+       (c.anchor_type = 'group' and exists (select 1 from app.group_members gm where gm.group_id = c.anchor_id and gm.user_id = $1))
+       or (c.anchor_type <> 'group' and exists (select 1 from app.conversation_states cs where cs.conversation_id = c.id and cs.user_id = $1)))`,
     [orgId],
   );
+  const others = all.filter((c) => c.anchor.type !== 'group');
+  if (!others.length) return all;
+  const rows = await db.query<ConvRow>(`${CONV_SELECT} where c.id = any($1::uuid[])`, [others.map((c) => c.id)]);
+  const objs = await toObjects(db, rows.rows);
+  return all.filter((c) => c.anchor.type === 'group' || can(actor, 'conversation.read', objs.get(c.id)!).allowed);
 }
 
 async function summaryOf(db: Queryable, userId: string, conversationId: string) {
@@ -190,19 +222,21 @@ export async function getMessages(
   };
 }
 
-/** Mention chỉ người đọc được hội thoại (§4.3): thành viên nhóm anchor có membership tổ chức active. */
-async function assertMentionable(db: Queryable, conv: ConvRow, ids: string[]) {
+/** Mention chỉ người đọc được hội thoại (§4.3, T15): kiểm tra read(conversation) của từng người được nhắc. */
+async function assertMentionable(db: Queryable, conv: ConvRow, obj: ConversationObject, ids: string[]) {
   if (!ids.length) return;
-  const r = await db.query<{ user_id: string }>(
-    `select gm.user_id from app.group_members gm
-       join app.memberships ms on ms.org_id = gm.org_id and ms.user_id = gm.user_id and ms.status = 'active'
-      where gm.group_id = $1 and gm.user_id = any($2::uuid[])`,
-    [conv.anchor_id, ids],
-  );
-  if (r.rowCount !== ids.length) {
+  let ok = 0;
+  for (const id of ids) {
+    const target = await loadActorContext(db, id, conv.org_id);
+    if (can(target, 'conversation.read', obj).allowed) ok++;
+  }
+  if (ok !== ids.length) {
     throw new AppError('validation_failed', 'Chỉ nhắc được người trong hội thoại', { fields: { mentionIds: 'not_a_reader' } });
   }
 }
+
+const anchorContext = (c: ConvRow) =>
+  c.anchor_type === 'group' ? { groupId: c.anchor_id, conversationId: c.id } : { eventId: c.anchor_id, conversationId: c.id };
 
 async function markReadUpTo(tx: Tx, conversationId: string, userId: string, seq: number) {
   await tx.query(
@@ -234,7 +268,7 @@ export async function sendMessage(ctx: CommandCtx, conversationId: string, input
 
   assertAllowed(can(actor, 'conversation.post', obj));
   const mentionIds = [...new Set(input.mentionIds)];
-  await assertMentionable(ctx.tx, conv, mentionIds);
+  await assertMentionable(ctx.tx, conv, obj, mentionIds);
 
   let replyToSenderId: string | null = null;
   if (input.replyToId) {
@@ -270,7 +304,7 @@ export async function sendMessage(ctx: CommandCtx, conversationId: string, input
     orgId: conv.org_id,
     verb: 'message.created',
     object: { type: 'message', id: messageId },
-    context: { groupId: conv.anchor_id, conversationId },
+    context: anchorContext(conv),
     payload: {
       message_id: messageId,
       seq,
@@ -316,7 +350,7 @@ export async function editMessage(ctx: CommandCtx, messageId: string, input: { b
   const { m, conv, actor, msgObj } = await loadMessage(ctx, messageId);
   assertAllowed(can(actor, 'message.edit', msgObj));
   const mentionIds = [...new Set(input.mentionIds)];
-  await assertMentionable(ctx.tx, conv, mentionIds);
+  await assertMentionable(ctx.tx, conv, msgObj.conversation, mentionIds);
 
   const before = await ctx.tx.query<{ user_id: string }>(`select user_id from app.message_mentions where message_id = $1`, [messageId]);
   const prev = new Set(before.rows.map((r) => r.user_id));
@@ -336,7 +370,7 @@ export async function editMessage(ctx: CommandCtx, messageId: string, input: { b
     orgId: conv.org_id,
     verb: 'message.edited',
     object: { type: 'message', id: messageId },
-    context: { groupId: conv.anchor_id, conversationId: conv.id },
+    context: anchorContext(conv),
     payload: { message_id: messageId, added_mention_ids: added, removed_mention_ids: removed },
   });
   await signalChanged(ctx, conv.id, messageId, Number(m.seq), 'edited', 'message.edited', activityId);
@@ -356,7 +390,7 @@ export async function deleteMessage(ctx: CommandCtx, messageId: string) {
     orgId: conv.org_id,
     verb: 'message.deleted',
     object: { type: 'message', id: messageId },
-    context: { groupId: conv.anchor_id, conversationId: conv.id },
+    context: anchorContext(conv),
     payload: { message_id: messageId, deleted_by: ctx.user.id },
   });
   await signalChanged(ctx, conv.id, messageId, Number(m.seq), 'deleted', 'message.deleted', activityId);

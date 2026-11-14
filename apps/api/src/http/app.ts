@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { Db } from '../db/pool.js';
 import { groupRoutes } from '../modules/groups/routes.js';
 import { messagingRoutes } from '../modules/messaging/routes.js';
+import { schedulingRoutes } from '../modules/scheduling/routes.js';
 import { identityRoutes } from '../modules/identity/routes.js';
 import { provisionUser, type UserRow } from '../modules/identity/users.js';
 import type { RealtimePublisher } from '../modules/realtime/publisher.js';
@@ -61,5 +62,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(identityRoutes);
   await app.register(groupRoutes);
   await app.register(messagingRoutes);
+  await app.register(schedulingRoutes);
   return app;
 }
