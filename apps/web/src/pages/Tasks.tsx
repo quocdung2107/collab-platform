@@ -9,6 +9,7 @@ import { ChatPanel } from './ChatPanel';
 import { Follow } from './EventPage';
 import { NotAvailable } from './OrgPage';
 import { Related } from './Related';
+import { Files } from './Files';
 
 export const taskStatusLabel: Record<TaskStatus, string> = { open: 'Chưa làm', in_progress: 'Đang làm', done: 'Xong', cancelled: 'Đã huỷ' };
 const dueText = (iso: string | null) => (iso ? `hạn ${dayLabel(iso)} ${timeLabel(iso)}` : 'không hạn');
@@ -250,6 +251,7 @@ export function TaskPage({ taskId, meId }: { taskId: string; meId: string }) {
       </section>
 
       <Related type="task" id={taskId} topic={`task:${taskId}`} canLink={t.can.edit} />
+      <Files owner="tasks" id={taskId} orgId={t.orgId} topic={`task:${taskId}`} canAdd={t.can.flag} meId={meId} />
 
       <section className="card">
         <h2>Trao đổi về việc này</h2>

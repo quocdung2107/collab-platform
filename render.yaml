@@ -23,3 +23,6 @@ services:
         value: https://quocdung2107.github.io,http://localhost:5173
       - key: REALTIME_DRIVER
         value: supabase
+      # Khoá máy chủ Supabase (Project Settings → API Keys: secret / service_role) để bật tệp đính kèm. Nhập tay, không commit.
+      - key: SUPABASE_SERVICE_KEY
+        sync: false

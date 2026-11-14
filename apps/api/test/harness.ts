@@ -4,6 +4,7 @@ import { buildApp } from '../src/http/app.js';
 import { supabaseVerifier } from '../src/http/auth.js';
 import { dispatchPending } from '../src/modules/notifications/notifier.js';
 import { MemoryRealtime } from '../src/modules/realtime/publisher.js';
+import { MemoryStorage } from '../src/modules/files/storage.js';
 import { freshDb } from './db.js';
 
 export const SUPABASE_URL = 'https://test.supabase.co';
@@ -15,11 +16,13 @@ export async function createHarness() {
   const { publicKey, privateKey } = await generateKeyPair('ES256');
   const jwk = { ...(await exportJWK(publicKey)), kid: 'k1', alg: 'ES256' };
   const realtime = new MemoryRealtime();
+  const storage = new MemoryStorage();
   const app = await buildApp({
     db,
     verifyToken: supabaseVerifier(SUPABASE_URL, createLocalJWKSet({ keys: [jwk] })),
     realtime,
     webOrigins: ['http://localhost:5173'],
+    storage,
   });
 
   const sign = (claims: Record<string, unknown>, o: { iss?: string; aud?: string; exp?: string } = {}) =>
@@ -50,7 +53,7 @@ export async function createHarness() {
       },
     });
 
-  return { app, db, realtime, sign, user, dispatch, close: async () => (await app.close(), await db.end()) };
+  return { app, db, realtime, storage, sign, user, dispatch, close: async () => (await app.close(), await db.end()) };
 }
 
 export type Harness = Awaited<ReturnType<typeof createHarness>>;

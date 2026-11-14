@@ -43,6 +43,9 @@ Các quyết định ở mức triển khai, không thay đổi AD nào trong `d
 | IN-37 | Thẻ trong tin: `refs[]` khi gửi/sửa (origin `manual`, không xem được → `not_found`) cộng đường dẫn nội bộ `#event=…`/`#task=…`/`#group=…` nhận diện trong nội dung (origin `system`, không xem được → bỏ qua). Sửa tin thay toàn bộ tập thẻ bằng tập mới | F10-T3, T6, T7; giao diện MVP chỉ cần dán đường dẫn | Bộ chọn thẻ riêng: thêm UI, chưa cần |
 | IN-38 | `MessageDto.cards` dựng theo người xem (references + Task tạo từ tin); `TaskDto.source` cho nguồn gốc; khối Liên quan `GET /v1/{events,tasks}/:id/related` trả số mục ẩn | CONTEXT_ENGINE §3, §5 (X2); một vòng gọi cho mỗi màn hình | |
 | IN-39 | Link `references` giữa hai đối tượng công việc chỉ một Link cho một cặp, bất kể chiều | Truy xuất hai chiều đã có; tránh trùng hiển thị | |
+| IN-40 | Tệp: Backend ký URL tải lên (`POST /v1/organizations/:orgId/uploads`, khoá `{org}/{người tải}/{ngẫu nhiên}/{tên}`), máy khách tải thẳng lên bucket riêng tư `attachments`, rồi gắn khoá vào tin/buổi/việc; Backend kiểm tra khoá đúng người tải, có thật trong `storage.objects`, chưa gắn. Tải xuống: `GET /v1/attachments/:id/url` (URL 5 phút) sau `view(attachment)` | DATA_MODEL §8: quyền tải qua `can()`, không dựa riêng vào chính sách Storage; tệp không đi qua máy chủ API (Render gói miễn phí) | Tải qua API: tốn băng thông và thời gian chạy của Render; chính sách RLS trên `storage.objects`: nhân đôi logic quyền |
+| IN-41 | Cần biến môi trường `SUPABASE_SERVICE_KEY` (khoá máy chủ) trên Render; thiếu → API trả `unavailable` (503) cho tính năng tệp, phần còn lại chạy bình thường. Thêm mã lỗi `unavailable` | Khoá máy chủ chỉ ở Backend; triển khai được trước khi có khoá | |
+| IN-42 | Tệp tối đa 20 MB; xoá tin → tệp của tin không còn tải được; gỡ tệp là xoá mềm (nội dung Storage dọn sau, chưa có tác vụ dọn) | Đủ cho ảnh/tài liệu; dọn nội dung cần tác vụ nền (S13) | |
 
 ## Chưa làm, có chủ đích
 

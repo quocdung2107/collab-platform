@@ -4,6 +4,7 @@ import { buildApp } from './http/app.js';
 import { supabaseVerifier } from './http/auth.js';
 import { NotifierRunner } from './modules/notifications/notifier.js';
 import { MemoryRealtime, supabaseRealtime } from './modules/realtime/publisher.js';
+import { supabaseStorage } from './modules/files/storage.js';
 
 const config = loadConfig();
 const db = createPool(config.databaseUrl);
@@ -16,6 +17,7 @@ const app = await buildApp({
   webOrigins: config.webOrigins,
   logger: true,
   onWrite: () => notifier?.kick(),
+  storage: config.supabaseServiceKey ? supabaseStorage(config.supabaseUrl, config.supabaseServiceKey, db) : undefined,
 });
 // Bộ notifier đọc outbox activity_events (AD-08) trong cùng tiến trình; quét định kỳ phòng khi lỡ tín hiệu.
 notifier = new NotifierRunner(db, realtime, app.log);

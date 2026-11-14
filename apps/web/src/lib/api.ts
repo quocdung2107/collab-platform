@@ -29,6 +29,7 @@ import type {
   TaskDto,
   TaskSummaryDto,
   RelatedDto,
+  AttachmentDto,
 } from '@collab/shared';
 import { supabase } from './supabase';
 
@@ -109,7 +110,7 @@ export const api = {
     return request<MessagePageDto>(`/v1/conversations/${conversationId}/messages${qs.size ? `?${qs}` : ''}`);
   },
   /** clientMsgId là khoá idempotent (F9-T1): gửi lại cùng khoá không tạo tin thứ hai. */
-  sendMessage: (conversationId: string, body: { clientMsgId: string; body: string; replyToId?: string; mentionIds?: string[] }) =>
+  sendMessage: (conversationId: string, body: { clientMsgId: string; body: string; replyToId?: string; mentionIds?: string[]; attachments?: UploadedFile[] }) =>
     request<MessageDto>(`/v1/conversations/${conversationId}/messages`, json('POST', body)),
   editMessage: (messageId: string, body: { body: string; mentionIds: string[] }) => request<MessageDto>(`/v1/messages/${messageId}`, json('PATCH', body)),
   deleteMessage: (messageId: string) => request<MessageDto>(`/v1/messages/${messageId}`, json('DELETE')),
@@ -126,6 +127,12 @@ export const api = {
   relocateEvent: (eventId: string, body: { expectedVersion: number; location: string | null }) => request<EventDto>(`/v1/events/${eventId}/relocate`, json('POST', body)),
   cancelEvent: (eventId: string, body: { expectedVersion: number; reason?: string }) => request<EventDto>(`/v1/events/${eventId}/cancel`, json('POST', body)),
   task: (id: string) => request<TaskDto>(`/v1/tasks/${id}`),
+  requestUpload: (orgId: string, body: { filename: string; size: number }) =>
+    request<{ key: string; uploadUrl: string; token: string }>(`/v1/organizations/${orgId}/uploads`, json('POST', body)),
+  attachmentUrl: (id: string) => request<{ url: string; expiresAt: string }>(`/v1/attachments/${id}/url`),
+  attachments: (owner: 'events' | 'tasks', id: string) => request<AttachmentDto[]>(`/v1/${owner}/${id}/attachments`),
+  addAttachment: (owner: 'events' | 'tasks', id: string, file: UploadedFile) => request<AttachmentDto>(`/v1/${owner}/${id}/attachments`, json('POST', file, true)),
+  removeAttachment: (id: string) => request(`/v1/attachments/${id}`, json('DELETE')),
   related: (type: 'event' | 'task', id: string) => request<RelatedDto>(`/v1/${type}s/${id}/related`),
   linkObjects: (from: { type: 'event' | 'task'; id: string }, to: { type: 'event' | 'task'; id: string }) =>
     request<{ linkId: string }>('/v1/links', json('POST', { from, to }, true)),
@@ -177,6 +184,11 @@ export const api = {
   setSubscription: (type: 'event' | 'task' | 'conversation', id: string, mode: SubscriptionMode | null) =>
     request<{ mode: SubscriptionMode | null }>(`/v1/subscriptions/${type}/${id}`, mode ? json('PUT', { mode }) : json('DELETE')),
 };
+
+export interface UploadedFile {
+  key: string;
+  filename: string;
+}
 
 export interface NewTaskBody {
   orgId?: string;

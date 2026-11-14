@@ -39,8 +39,9 @@ Tệp `render.yaml` ở gốc repo mô tả dịch vụ `collab-api` (Node 22, v
 
 1. Supabase → **Connect** → **Session pooler**: chép chuỗi kết nối (dạng `postgresql://postgres.<ref>:[PASSWORD]@<host>.pooler.supabase.com:5432/postgres`), thay `[PASSWORD]` bằng mật khẩu database, thêm `?sslmode=require&uselibpqcompat=true` vào cuối. Dùng Session pooler vì Render không ra được IPv6 của kết nối trực tiếp.
 2. Render → **New → Blueprint** → chọn repo `collab-platform` → nhập `DATABASE_URL` ở bước trên → **Apply**.
-3. Khi dịch vụ chạy, mở `https://<tên-dịch-vụ>.onrender.com/healthz` phải thấy `{"ok":true}`.
-4. URL hiện tại `https://collab-api-jcwa.onrender.com` được ghi sẵn trong `.github/workflows/pages.yml`. Đổi URL: sửa tệp đó, hoặc đặt biến repo `API_URL` (Settings → Secrets and variables → Actions → Variables) để ghi đè.
+3. (Tệp đính kèm) Supabase → **Project Settings → API Keys** → chép khoá **secret** (hoặc `service_role`) → Render → dịch vụ → **Environment** → thêm `SUPABASE_SERVICE_KEY`. Thiếu khoá này, nút tải tệp báo "Chưa bật lưu trữ tệp"; phần còn lại vẫn chạy.
+4. Khi dịch vụ chạy, mở `https://<tên-dịch-vụ>.onrender.com/healthz` phải thấy `{"ok":true}`.
+5. URL hiện tại `https://collab-api-jcwa.onrender.com` được ghi sẵn trong `.github/workflows/pages.yml`. Đổi URL: sửa tệp đó, hoặc đặt biến repo `API_URL` (Settings → Secrets and variables → Actions → Variables) để ghi đè.
 
 Đánh đổi đã biết:
 - Gói miễn phí ngủ sau ~15 phút không có yêu cầu; yêu cầu đầu tiên sau đó chậm khoảng một phút. Chấp nhận được cho thử nghiệm, không cho vận hành thật.

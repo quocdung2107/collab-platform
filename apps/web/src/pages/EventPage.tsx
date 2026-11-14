@@ -11,6 +11,7 @@ import { NotAvailable } from './OrgPage';
 import { RespondButtons } from './Respond';
 import { TaskList } from './Tasks';
 import { Related } from './Related';
+import { Files } from './Files';
 
 /** Trang buổi (F3, F4): thông tin, vị trí phục vụ, xếp người, thread trao đổi. */
 export function EventPage({ eventId, meId }: { eventId: string; meId: string }) {
@@ -127,6 +128,7 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
       />
 
       {!isDraft && <Related type="event" id={eventId} topic={`event:${eventId}`} canLink={e.canEdit} />}
+      <Files owner="events" id={eventId} orgId={e.orgId} topic={`event:${eventId}`} canAdd={e.canEdit && e.status !== 'cancelled'} meId={meId} />
 
       {e.conversationId && (
         <section className="card">

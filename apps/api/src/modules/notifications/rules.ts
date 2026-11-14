@@ -111,8 +111,9 @@ export async function audience(a: Activity, f: Facts): Promise<AudienceRow[]> {
       return direct((p.added_mention_ids as string[]) ?? [], 'mentioned');
     case 'attachment.added':
     case 'attachment.removed':
-      if (a.event_id && p.owner_type === 'event') return direct(await f.subscribers('event', a.event_id), 'subscriber');
-      if (a.task_id && p.owner_type === 'task') return direct(await f.subscribers('task', a.task_id), 'subscriber');
+      // payload.owner{type, id} (EVENT_API_CONTRACTS §2.4).
+      if (a.task_id && (p.owner as { type?: string } | undefined)?.type === 'task') return direct(await f.subscribers('task', a.task_id), 'subscriber');
+      if (a.event_id && (p.owner as { type?: string } | undefined)?.type === 'event') return direct(await f.subscribers('event', a.event_id), 'subscriber');
       return [];
     default:
       return [];
@@ -127,7 +128,7 @@ export function targetOf(a: Activity): Target | null {
   if (domain === 'message') return { type: 'message', id: a.object_id };
   if (domain === 'group') return { type: 'group', id: a.object_id };
   if (domain === 'member') return { type: 'organization', id: a.org_id };
-  if (domain === 'attachment') return a.event_id ? { type: 'event', id: a.event_id } : a.task_id ? { type: 'task', id: a.task_id } : null;
+  if (domain === 'attachment') return a.task_id ? { type: 'task', id: a.task_id } : a.event_id ? { type: 'event', id: a.event_id } : null;
   return null;
 }
 

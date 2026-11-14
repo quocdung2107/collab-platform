@@ -16,13 +16,13 @@ Cập nhật: 2026-11-14. Nguồn tiêu chí: `docs/spec/MVP_ACCEPTANCE_CRITERIA
 | S8 | My Workspace: Cần xử lý, Cần phản hồi, Sắp tới, Có gì mới (F12) | #12 |
 | S9 | Dời lịch (xác nhận lại theo ngưỡng/đổi ngày), đổi địa điểm, huỷ buổi (F7) | #13 |
 | S10 | Task: tạo/giao/nhận/tiến độ/cờ/người cùng làm, thread Task, Task mẫu, dời hạn theo buổi, gỡ thành viên (F8, F7-T3..T5, F1-T5) | #14 |
-| S11a | Liên kết: Task từ tin nhắn, thẻ đối tượng, khối Liên quan, Link giữa hai đối tượng (F10) | PR S11a |
+| S11a | Liên kết: Task từ tin nhắn, thẻ đối tượng, khối Liên quan, Link giữa hai đối tượng (F10) | #15 |
+| S11b | Tệp đính kèm trong tin, buổi, việc qua Storage; URL ký ngắn hạn (F9b, F14-T4) | PR S11b |
 
 ## Thứ tự còn lại
 
 | Lát | Nội dung | Tiêu chí | Phụ thuộc | Ghi chú |
 | --- | --- | --- | --- | --- |
-| S11b | **Tệp (F9b)**: ảnh/tệp qua Storage | F14-T4 | S11a | |
 | S12 | **Đẩy thật (F11b)**: thiết bị, Web Push (từ OD-17), Preference, giờ yên lặng, thử lại | F11-T6..T9, T11; F14-T6 | S6 | Bỏ hàm thử `push-spike` |
 | S13 | **Lịch sử + rà soát (F13, F14)**: trang Lịch sử, quét T1–T15, 4 kịch bản E2E trên thiết bị thật | F13-T1..T5; F14-T1,T3,T5; E2E-1..4 | tất cả | Dọn dữ liệu/hàm thử nghiệm |
 

@@ -13,6 +13,7 @@ const sendBody = z.object({
   replyToId: z.uuid().optional(),
   mentionIds,
   refs,
+  attachments: z.array(z.object({ key: z.string().min(10).max(400), filename: z.string().trim().min(1).max(255) })).max(10).optional(),
 });
 const editBody = z.object({ body, mentionIds, refs });
 const readBody = z.object({ seq: z.number().int().min(0) });

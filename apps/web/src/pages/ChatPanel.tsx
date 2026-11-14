@@ -1,6 +1,7 @@
 import type { ConversationSummaryDto, GroupMemberDto, MessageDto, ObjectCardDto } from '@collab/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, ApiError, errorText } from '../lib/api';
+import { api, ApiError, errorText, type UploadedFile } from '../lib/api';
+import { openAttachment, sizeLabel, uploadFile } from '../lib/files';
 import { useRealtime } from '../lib/realtime';
 
 interface Pending {
@@ -8,6 +9,7 @@ interface Pending {
   body: string;
   replyToId?: string;
   mentionIds: string[];
+  attachments?: UploadedFile[];
   failed: boolean;
 }
 
@@ -137,6 +139,26 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
     void flush([...pendingStore.load(conversationId)]);
   };
 
+  const [uploading, setUploading] = useState(false);
+  const attach = async (file: File) => {
+    if (!conv) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const f = await uploadFile(conv.orgId, file);
+      const body = text.trim() || `📎 ${file.name}`;
+      const p: Pending = { clientMsgId: crypto.randomUUID(), body, replyToId: replyTo?.id, mentionIds: [], attachments: [f], failed: false };
+      updatePending((cur) => [...cur, p]);
+      setText('');
+      setReplyTo(null);
+      void flush([...pendingStore.load(conversationId)]);
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const loadOlder = async () => {
     const first = messages[0];
     if (!first) return;
@@ -202,6 +224,15 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
                 </div>
               )}
               {m.deleted ? <em className="hint">Tin nhắn đã bị xoá</em> : <div className="body">{m.body}</div>}
+              {m.attachments.length > 0 && (
+                <div className="cards">
+                  {m.attachments.map((a) => (
+                    <button key={a.id} className="tag link" onClick={() => void openAttachment(a.id).catch((e) => setError(errorText(e)))}>
+                      📎 {a.filename} <span className="hint">· {sizeLabel(a.sizeBytes)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               {m.cards.length > 0 && <Cards cards={m.cards} />}
               {!m.deleted && m.kind === 'user' && !readOnly && (
                 <div className="row actions">
@@ -291,6 +322,19 @@ export function ChatPanel({ conversationId, meId, members }: { conversationId: s
                 ))}
               </select>
             )}
+            <label className="button small">
+              {uploading ? 'Đang tải…' : '📎 Tệp'}
+              <input
+                type="file"
+                hidden
+                disabled={uploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (f) void attach(f);
+                }}
+              />
+            </label>
             <button className="button primary" disabled={!text.trim()}>
               Gửi
             </button>
