@@ -1,6 +1,6 @@
 # Work-centered Communication Platform — ngữ cảnh dự án
 
-Chủ sản phẩm: Dung. Ngôn ngữ làm việc: tiếng Việt. Chưa có mã nguồn; bộ đặc tả v0.2 trong `docs/spec/` là nguồn sự thật.
+Chủ sản phẩm: Dung. Ngôn ngữ làm việc: tiếng Việt. Mã nguồn: monorepo pnpm (xem README.md, docs/IMPLEMENTATION_NOTES.md); bộ đặc tả v0.2 trong `docs/spec/` là nguồn sự thật.
 
 ## Đọc theo thứ tự (trong `docs/spec/`)
 1. ARCHITECTURE_DECISIONS.md (AD-01..30, OD, mức sẵn sàng)
