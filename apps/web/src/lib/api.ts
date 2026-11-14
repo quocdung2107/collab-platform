@@ -26,6 +26,11 @@ import type {
   NotificationPageDto,
   SubscriptionMode,
   WorkspaceDto,
+  TaskDto,
+  TaskSummaryDto,
+  RelatedDto,
+  AttachmentDto,
+  HistoryEntryDto,
 } from '@collab/shared';
 import { supabase } from './supabase';
 
@@ -106,7 +111,7 @@ export const api = {
     return request<MessagePageDto>(`/v1/conversations/${conversationId}/messages${qs.size ? `?${qs}` : ''}`);
   },
   /** clientMsgId là khoá idempotent (F9-T1): gửi lại cùng khoá không tạo tin thứ hai. */
-  sendMessage: (conversationId: string, body: { clientMsgId: string; body: string; replyToId?: string; mentionIds?: string[] }) =>
+  sendMessage: (conversationId: string, body: { clientMsgId: string; body: string; replyToId?: string; mentionIds?: string[]; attachments?: UploadedFile[] }) =>
     request<MessageDto>(`/v1/conversations/${conversationId}/messages`, json('POST', body)),
   editMessage: (messageId: string, body: { body: string; mentionIds: string[] }) => request<MessageDto>(`/v1/messages/${messageId}`, json('PATCH', body)),
   deleteMessage: (messageId: string) => request<MessageDto>(`/v1/messages/${messageId}`, json('DELETE')),
@@ -122,6 +127,31 @@ export const api = {
     request<{ event: EventDto; summary: RescheduleSummary }>(`/v1/events/${eventId}/reschedule`, json('POST', body)),
   relocateEvent: (eventId: string, body: { expectedVersion: number; location: string | null }) => request<EventDto>(`/v1/events/${eventId}/relocate`, json('POST', body)),
   cancelEvent: (eventId: string, body: { expectedVersion: number; reason?: string }) => request<EventDto>(`/v1/events/${eventId}/cancel`, json('POST', body)),
+  task: (id: string) => request<TaskDto>(`/v1/tasks/${id}`),
+  requestUpload: (orgId: string, body: { filename: string; size: number }) =>
+    request<{ key: string; uploadUrl: string; token: string }>(`/v1/organizations/${orgId}/uploads`, json('POST', body)),
+  attachmentUrl: (id: string) => request<{ url: string; expiresAt: string }>(`/v1/attachments/${id}/url`),
+  attachments: (owner: 'events' | 'tasks', id: string) => request<AttachmentDto[]>(`/v1/${owner}/${id}/attachments`),
+  addAttachment: (owner: 'events' | 'tasks', id: string, file: UploadedFile) => request<AttachmentDto>(`/v1/${owner}/${id}/attachments`, json('POST', file, true)),
+  removeAttachment: (id: string) => request(`/v1/attachments/${id}`, json('DELETE')),
+  related: (type: 'event' | 'task', id: string) => request<RelatedDto>(`/v1/${type}s/${id}/related`),
+  history: (type: 'event' | 'task', id: string) => request<HistoryEntryDto[]>(`/v1/${type}s/${id}/history`),
+  linkObjects: (from: { type: 'event' | 'task'; id: string }, to: { type: 'event' | 'task'; id: string }) =>
+    request<{ linkId: string }>('/v1/links', json('POST', { from, to }, true)),
+  unlink: (linkId: string) => request(`/v1/links/${linkId}`, json('DELETE')),
+  eventTasks: (eventId: string) => request<TaskSummaryDto[]>(`/v1/events/${eventId}/tasks`),
+  groupTasks: (groupId: string) => request<TaskSummaryDto[]>(`/v1/groups/${groupId}/tasks`),
+  createTask: (body: NewTaskBody) => request<TaskDto>('/v1/tasks', json('POST', body, true)),
+  updateTask: (id: string, body: { expectedVersion: number; title?: string; description?: string | null; dueAt?: string | null; dueOffsetMin?: number | null }) =>
+    request<TaskDto>(`/v1/tasks/${id}`, json('PATCH', body)),
+  assignTask: (id: string, body: { expectedVersion: number; ownerId: string | null; requiresAcceptance?: boolean }) =>
+    request<TaskDto | null>(`/v1/tasks/${id}/assign`, json('POST', body)),
+  respondTask: (id: string, body: { response: 'accept' | 'decline'; reason?: string }) => request<TaskDto>(`/v1/tasks/${id}/respond`, json('POST', body)),
+  taskStatus: (id: string, body: { expectedVersion: number; status: 'open' | 'in_progress' | 'done' }) => request<TaskDto>(`/v1/tasks/${id}/status`, json('POST', body)),
+  cancelTask: (id: string, body: { expectedVersion: number; reason?: string }) => request<TaskDto>(`/v1/tasks/${id}/cancel`, json('POST', body)),
+  taskFlags: (id: string, body: { blocked?: boolean; needsHelp?: boolean }) => request<TaskDto>(`/v1/tasks/${id}/flags`, json('POST', body)),
+  taskCollaborators: (id: string, body: { add?: string[]; remove?: string[] }) => request<TaskDto | null>(`/v1/tasks/${id}/collaborators`, json('POST', body)),
+  openTaskConversation: (id: string) => request<{ conversationId: string }>(`/v1/tasks/${id}/conversation`, json('POST', {})),
   deleteDraft: (eventId: string, expectedVersion: number) => request(`/v1/events/${eventId}`, json('DELETE', { expectedVersion })),
   publishEvent: (eventId: string, expectedVersion: number) =>
     request<{ event: EventDto; requestedCount: number }>(`/v1/events/${eventId}/publish`, json('POST', { expectedVersion })),
@@ -155,13 +185,54 @@ export const api = {
   subscription: (type: 'event' | 'task' | 'conversation', id: string) => request<{ mode: SubscriptionMode | null }>(`/v1/subscriptions/${type}/${id}`),
   setSubscription: (type: 'event' | 'task' | 'conversation', id: string, mode: SubscriptionMode | null) =>
     request<{ mode: SubscriptionMode | null }>(`/v1/subscriptions/${type}/${id}`, mode ? json('PUT', { mode }) : json('DELETE')),
+  pushConfig: () => request<{ enabled: boolean; publicKey: string | null }>('/v1/push/config'),
+  pushDevices: () => request<PushDevice[]>('/v1/push/devices'),
+  registerPushDevice: (body: { endpoint: string; keys: { p256dh: string; auth: string }; platform: PushDevice['platform']; installedStandalone: boolean }) =>
+    request<{ id: string }>('/v1/push/devices', json('POST', body)),
+  removePushDevice: (endpoint: string) => request<{ removed: boolean }>('/v1/push/devices/remove', json('POST', { endpoint })),
+  notificationPrefs: () => request<NotificationPrefs>('/v1/me/notification-preferences'),
+  saveNotificationPrefs: (p: NotificationPrefs) => request<NotificationPrefs>('/v1/me/notification-preferences', json('PUT', p)),
 };
+
+export interface PushDevice {
+  id: string;
+  endpoint: string;
+  platform: 'ios' | 'android' | 'desktop' | 'web';
+  installedStandalone: boolean;
+  createdAt: string;
+  lastSeenAt: string;
+}
+
+export interface NotificationPrefs {
+  pushActionRequired: boolean;
+  pushDirect: boolean;
+  quietHoursEnabled: boolean;
+  quietStart: string;
+  quietEnd: string;
+}
+
+export interface UploadedFile {
+  key: string;
+  filename: string;
+}
+
+export interface NewTaskBody {
+  orgId?: string;
+  title: string;
+  description?: string | null;
+  scope?: { type: 'event' | 'group' | 'private'; eventId?: string; groupId?: string };
+  sourceMessageId?: string;
+  ownerId?: string | null;
+  requiresAcceptance?: boolean;
+  dueAt?: string | null;
+  dueOffsetMin?: number | null;
+}
 
 export interface RescheduleSummary {
   reconfirmCount: number;
   notifiedCount: number;
   tasksShifted: number;
-  tasksAbsoluteDue: number;
+  tasksAbsoluteDue: Array<{ id: string; title: string; dueAt: string }>;
 }
 
 export interface EventPatch {

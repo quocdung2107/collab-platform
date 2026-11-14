@@ -71,7 +71,7 @@ const definition = z.object({
     .array(z.object({ name: positionFields.name, groupId: z.uuid().nullable().default(null), slots: positionFields.slots.default(1), reportOffsetMin: positionFields.reportOffsetMin.default(0) }))
     .max(100)
     .default([]),
-  tasks: z.array(z.object({ title, dueOffsetMin: z.number().int() })).max(100).default([]),
+  tasks: z.array(z.object({ title, dueOffsetMin: z.number().int().nullable() })).max(100).default([]),
 });
 const templateBody = z.object({ name: z.string().trim().min(1).max(120), definition });
 const templateFromEventBody = z.object({ name: z.string().trim().min(1).max(120) });

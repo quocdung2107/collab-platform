@@ -62,7 +62,7 @@ export async function templateFromEvent(ctx: CommandCtx, eventId: string, name: 
     durationMin: Math.round((ev.row.ends_at.getTime() - ev.row.starts_at.getTime()) / 60_000),
     groupIds: [...ev.obj.groupIds],
     positions: pos.rows.map((p) => ({ name: p.name, groupId: p.group_id, slots: p.slots, reportOffsetMin: p.report_offset_min })),
-    tasks: [],
+    tasks: (await eventTaskSeeds(ctx.tx, eventId, ev.row.starts_at)).map((t) => ({ title: t.title, dueOffsetMin: t.dueOffsetMin })),
   };
   return insert(ctx, ev.row.org_id, name, def, eventId);
 }
@@ -80,4 +80,14 @@ export async function archiveTemplate(ctx: CommandCtx, templateId: string) {
     await emit(ctx, { orgId: t.org_id, verb: 'template.archived', object: { type: 'event_template', id: templateId } });
   }
   return { id: templateId, archived: true };
+}
+
+/** Task của một buổi dưới dạng hạt giống (mẫu / sao chép): hạn tuyệt đối đổi thành độ lệch so với giờ bắt đầu. */
+export async function eventTaskSeeds(db: Queryable, eventId: string, startsAt: Date) {
+  const r = await db.query<{ title: string; description: string | null; due_offset_min: number | null }>(
+    `select title, description, coalesce(due_offset_min, round(extract(epoch from (due_at - $2::timestamptz)) / 60)::int) as due_offset_min
+       from app.tasks where event_id = $1 and status <> 'cancelled' order by created_at`,
+    [eventId, startsAt],
+  );
+  return r.rows.map((t) => ({ title: t.title, description: t.description, dueOffsetMin: t.due_offset_min }));
 }

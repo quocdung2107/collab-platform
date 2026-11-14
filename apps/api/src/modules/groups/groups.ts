@@ -40,7 +40,7 @@ async function leaderCount(db: Queryable, groupId: string, lock = false) {
 }
 
 /** Nạp nhóm + ngữ cảnh người dùng; kiểm tra view(group) → not_found nếu không được xem. */
-async function viewGroup(db: Queryable, userId: string, groupId: string, forUpdate = false) {
+export async function viewGroup(db: Queryable, userId: string, groupId: string, forUpdate = false) {
   const group = await loadGroup(db, groupId, forUpdate);
   const actor = await loadActorContext(db, userId, group.org_id);
   const obj: GroupObject = { type: 'group', id: group.id, orgId: group.org_id, archived: group.archived_at !== null };
