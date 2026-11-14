@@ -27,7 +27,7 @@ describe.skipIf(!TEST_DB_URL)('F1/F2/F14: tổ chức, lời mời, nhóm, phân
 
   beforeAll(async () => {
     h = await createHarness();
-    [AD, LD, M1, M2, X, Z] = await Promise.all(['AD', 'LD', 'M1', 'M2', 'X', 'Z'].map((n) => h.user(n)));
+    [AD, LD, M1, M2, X, Z] = await Promise.all([h.user('AD'), h.user('LD'), h.user('M1'), h.user('M2'), h.user('X'), h.user('Z')]);
     const org = await AD.call('POST', '/v1/organizations', { name: 'Hội thánh Ân Điển' });
     expect(org.status).toBe(201);
     expect(org.body.myRole).toBe('owner');
