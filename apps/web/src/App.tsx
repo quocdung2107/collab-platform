@@ -35,6 +35,13 @@ export function App() {
     );
   }
 
+  // Ứng dụng mở từ Màn hình chính không có thanh địa chỉ → cần liên kết tới trang thử OD-17 (bỏ khi xong thử nghiệm).
+  const od17Link = (
+    <a className="hint" href="#od17" onClick={() => setTimeout(() => window.location.reload(), 0)}>
+      Thử thông báo đẩy (OD-17)
+    </a>
+  );
+
   if (!supabaseConfigured) {
     return (
       <main>
@@ -61,6 +68,7 @@ export function App() {
             </button>
           </section>
         )}
+        {od17Link}
       </main>
     );
   }
@@ -91,6 +99,7 @@ export function App() {
           Đăng xuất
         </button>
       </section>
+      {od17Link}
     </main>
   );
 }

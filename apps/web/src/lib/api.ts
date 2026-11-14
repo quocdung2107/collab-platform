@@ -1,7 +1,8 @@
 import type { ApiErrorBody, MeResponse } from '@collab/shared';
 import { supabase } from './supabase';
 
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8080';
+// Rỗng = bản build chưa có máy chủ API (vd. GitHub Pages trước khi host API). Chỉ dùng localhost khi chạy dev.
+const API_URL = (import.meta.env.VITE_API_URL as string | undefined) || (import.meta.env.DEV ? 'http://localhost:8080' : '');
 
 export class ApiError extends Error {
   constructor(
@@ -13,6 +14,9 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  if (!API_URL) {
+    throw new ApiError(0, { code: 'internal', message: 'Bản này chưa nối với máy chủ API. Đăng nhập Google đã thành công.' });
+  }
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   const res = await fetch(`${API_URL}${path}`, {
