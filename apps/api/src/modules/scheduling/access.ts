@@ -37,8 +37,10 @@ export async function eventObjects(db: Queryable, rows: EventRow[]): Promise<Map
   const [groups, owners, assignees] = await Promise.all([
     db.query<{ event_id: string; group_id: string }>(`select event_id, group_id from app.event_groups where event_id = any($1::uuid[])`, [ids]),
     db.query<{ event_id: string; user_id: string }>(`select event_id, user_id from app.event_owners where event_id = any($1::uuid[])`, [ids]),
+    // Buổi đã huỷ: người có vị trí lúc huỷ vẫn xem được để đọc thông báo huỷ (F7-T8, IN-28).
     db.query<{ event_id: string; user_id: string }>(
-      `select distinct event_id, user_id from app.assignments where event_id = any($1::uuid[]) and status = any($2::text[])`,
+      `select distinct event_id, user_id from app.assignments
+        where event_id = any($1::uuid[]) and (status = any($2::text[]) or (status = 'cancelled' and cancel_reason = 'event_cancelled'))`,
       [ids, ACTIVE],
     ),
   ]);

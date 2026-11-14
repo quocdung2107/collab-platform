@@ -160,7 +160,12 @@ export async function removePosition(ctx: CommandCtx, positionId: string) {
  * Xếp người (§5.2). Dòng Position bị khoá nên hai người điều phối xếp đồng thời vào vị trí 1 chỗ
  * → đúng một Assignment (F4-T1). Event draft → Assignment draft, không sự kiện; published → requested.
  */
-export async function createAssignment(ctx: CommandCtx, positionId: string, userId: string): Promise<CreatedAssignmentDto> {
+export async function createAssignment(
+  ctx: CommandCtx,
+  positionId: string,
+  userId: string,
+  opts: { causeId?: string; replacesAssignmentId?: string } = {},
+): Promise<CreatedAssignmentDto> {
   const { p, ev, obj } = await loadPosition(ctx, positionId);
   assertAllowed(can(ev.actor, 'position.manage', obj));
   if (ev.row.status === 'cancelled') throw new AppError('invalid_transition', 'Buổi đã huỷ');
@@ -177,9 +182,9 @@ export async function createAssignment(ctx: CommandCtx, positionId: string, user
 
   const status = ev.row.status === 'draft' ? 'draft' : 'requested';
   const r = await ctx.tx.query<{ id: string }>(
-    `insert into app.assignments (org_id, event_id, position_id, user_id, status, requested_by, requested_at)
-     values ($1, $2, $3, $4, $5, $6, case when $5 = 'requested' then now() end) returning id`,
-    [p.org_id, p.event_id, positionId, userId, status, ctx.user.id],
+    `insert into app.assignments (org_id, event_id, position_id, user_id, status, requested_by, requested_at, replaces_assignment_id)
+     values ($1, $2, $3, $4, $5, $6, case when $5 = 'requested' then now() end, $7) returning id`,
+    [p.org_id, p.event_id, positionId, userId, status, ctx.user.id, opts.replacesAssignmentId ?? null],
   );
   const assignmentId = r.rows[0]!.id;
   if (status === 'requested') {
@@ -190,7 +195,8 @@ export async function createAssignment(ctx: CommandCtx, positionId: string, user
         verb: 'assignment.requested',
         object: { type: 'assignment', id: assignmentId },
         context: { eventId: p.event_id },
-        payload: { assignee_id: userId, position_id: positionId, requested_by: ctx.user.id, replaces_assignment_id: null },
+        causeId: opts.causeId,
+        payload: { assignee_id: userId, position_id: positionId, requested_by: ctx.user.id, replaces_assignment_id: opts.replacesAssignmentId ?? null },
       },
       [topics.event(p.event_id)],
     );

@@ -8,7 +8,7 @@ import type { GroupRole, OrgRole } from '@collab/shared';
  * nằm ở context.ts.
  *
  * Phạm vi hiện tại: Organization (§4.1), Group (§4.2), Conversation/Message (§4.3, anchor group/event),
- * Event/Position/Assignment (§3, §4.4, §4.5). Task được thêm ở lát S10.
+ * Event/Position/Assignment (§3, §4.4, §4.5), Task (§4.6, S10).
  */
 
 /** Ngữ cảnh của người dùng trong MỘT tổ chức. orgRole = null nghĩa là không có Membership active. */
@@ -63,12 +63,30 @@ export type AssignmentObject = {
   status: 'draft' | 'requested' | 'accepted' | 'declined' | 'reconfirm' | 'cancelled';
 };
 
-/** Hội thoại (§4.3): anchor group (S4) hoặc event (S5); task thêm ở S10. */
+/** Task (§3 view(task), §4.6). event có khi scopeType = event. */
+export type TaskObject = {
+  type: 'task';
+  id: string;
+  orgId: string;
+  scopeType: 'event' | 'group' | 'private';
+  event: EventObject | null;
+  groupId: string | null;
+  ownerId: string | null;
+  assignedBy: string | null;
+  createdBy: string;
+  collaboratorIds: readonly string[];
+  status: 'open' | 'in_progress' | 'done' | 'cancelled';
+};
+
+/** Tạo Task: chưa có id (bảng "Tạo Task" §4.6). */
+export type TaskDraftObject = { type: 'task_draft'; orgId: string; scopeType: TaskObject['scopeType']; event: EventObject | null; groupId: string | null };
+
+/** Hội thoại (§4.3): anchor group (S4), event (S5), task (S10). */
 export type ConversationObject = {
   type: 'conversation';
   id: string;
   orgId: string;
-  anchor: { type: 'group'; id: string } | { type: 'event'; id: string; event: EventObject };
+  anchor: { type: 'group'; id: string } | { type: 'event'; id: string; event: EventObject } | { type: 'task'; id: string; task: TaskObject };
   readOnly: boolean;
 };
 
@@ -88,7 +106,18 @@ export type MessageAction = 'message.edit' | 'message.delete';
 export type EventAction = 'event.view' | 'event.edit';
 export type EventDraftAction = 'event.create';
 export type PositionAction = 'position.manage';
-export type AssignmentAction = 'assignment.view' | 'assignment.view_decline_reason';
+export type AssignmentAction = 'assignment.view' | 'assignment.view_decline_reason' | 'assignment.respond' | 'assignment.manage';
+export type TaskAction =
+  | 'task.view'
+  | 'task.edit'
+  | 'task.assign'
+  | 'task.respond'
+  | 'task.status'
+  | 'task.reopen_cancel'
+  | 'task.flag'
+  | 'task.collaborators'
+  | 'task.collaborators.leave';
+export type TaskDraftAction = 'task.create';
 
 export type OrgAction =
   | 'org.view'
@@ -133,10 +162,22 @@ export function can(actor: ActorContext, action: EventAction, object: EventObjec
 export function can(actor: ActorContext, action: EventDraftAction, object: EventDraftObject): Decision;
 export function can(actor: ActorContext, action: PositionAction, object: PositionObject): Decision;
 export function can(actor: ActorContext, action: AssignmentAction, object: AssignmentObject): Decision;
+export function can(actor: ActorContext, action: TaskAction, object: TaskObject): Decision;
+export function can(actor: ActorContext, action: TaskDraftAction, object: TaskDraftObject): Decision;
 export function can(
   actor: ActorContext,
-  action: OrgAction | GroupAction | ConversationAction | MessageAction | EventAction | EventDraftAction | PositionAction | AssignmentAction,
-  object: OrgObject | GroupObject | ConversationObject | MessageObject | EventObject | EventDraftObject | PositionObject | AssignmentObject,
+  action: OrgAction | GroupAction | ConversationAction | MessageAction | EventAction | EventDraftAction | PositionAction | AssignmentAction | TaskAction | TaskDraftAction,
+  object:
+    | OrgObject
+    | GroupObject
+    | ConversationObject
+    | MessageObject
+    | EventObject
+    | EventDraftObject
+    | PositionObject
+    | AssignmentObject
+    | TaskObject
+    | TaskDraftObject,
 ): Decision {
   const orgId = object.type === 'organization' ? object.id : object.orgId;
   // Mọi vai trò đòi hỏi Membership active trong đúng tổ chức của đối tượng (PERMISSION_MODEL §2).
@@ -149,6 +190,8 @@ export function can(
   if (object.type === 'event') return canEvent(actor, action as EventAction, object);
   if (object.type === 'event_draft') return canCreateEvent(actor, object);
   if (object.type === 'position') return canPosition(actor, object);
+  if (object.type === 'task') return canTask(actor, action as TaskAction, object);
+  if (object.type === 'task_draft') return canCreateTask(actor, object);
   return canAssignment(actor, action as AssignmentAction, object);
 }
 
@@ -199,12 +242,88 @@ function canAssignment(actor: ActorContext, action: AssignmentAction, a: Assignm
       return a.status !== 'draft' || manager ? ALLOW : hidden('draft assignment');
     case 'assignment.view_decline_reason':
       return manager || a.userId === actor.userId ? ALLOW : forbidden('restricted field');
+    case 'assignment.respond':
+      // Người được xếp trả lời cho mình; position_manager trả lời hộ (ghi responded_by, T11).
+      if (a.status === 'draft' && !manager) return hidden('draft assignment');
+      return manager || a.userId === actor.userId ? ALLOW : forbidden('requires assignee or position manager');
+    case 'assignment.manage':
+      if (a.status === 'draft' && !manager) return hidden('draft assignment');
+      if (a.position.event.status === 'cancelled') return forbidden('event cancelled');
+      return manager ? ALLOW : forbidden('requires position manager');
   }
 }
 
-/** read(conversation): anchor group → thành viên nhóm (AD-11); anchor event → view(event). */
+/** Người quản lý phạm vi của Task (§4.6). */
+export function managesTaskScope(a: ActorContext, t: Pick<TaskObject, 'scopeType' | 'event' | 'groupId'>): boolean {
+  if (t.scopeType === 'private') return false;
+  if (isOrgAdmin(a)) return true;
+  if (t.scopeType === 'group') return a.groupRoles.get(t.groupId!) === 'leader';
+  return isEventOwner(a, t.event!) || leadsAnyOf(a, t.event!.groupIds);
+}
+
+/** task_manager = assigned_by ∪ creator ∪ người quản lý phạm vi (§2). */
+export const managesTask = (a: ActorContext, t: TaskObject) => t.assignedBy === a.userId || t.createdBy === a.userId || managesTaskScope(a, t);
+
+const taskParticipant = (a: ActorContext, t: TaskObject) =>
+  t.ownerId === a.userId || t.assignedBy === a.userId || t.createdBy === a.userId || t.collaboratorIds.includes(a.userId);
+
+/** view(task) — PERMISSION_MODEL §3. */
+export function viewsTask(a: ActorContext, t: TaskObject): boolean {
+  if (t.scopeType === 'event') return viewsEvent(a, t.event!);
+  if (isOrgAdmin(a) || taskParticipant(a, t)) return true;
+  return t.scopeType === 'group' && a.groupRoles.has(t.groupId!);
+}
+
+function canTask(actor: ActorContext, action: TaskAction, t: TaskObject): Decision {
+  if (!viewsTask(actor, t)) return hidden('cannot view task');
+  if (action === 'task.view') return ALLOW;
+  const manager = managesTask(actor, t);
+  const owner = t.ownerId === actor.userId;
+  const collaborator = t.collaboratorIds.includes(actor.userId);
+  switch (action) {
+    case 'task.edit':
+    case 'task.status':
+      return manager || owner ? ALLOW : forbidden('requires task manager or owner');
+    case 'task.assign':
+    case 'task.reopen_cancel':
+      return manager ? ALLOW : forbidden('requires task manager');
+    case 'task.respond':
+      return owner ? ALLOW : forbidden('requires task owner');
+    case 'task.flag':
+      return manager || owner || collaborator ? ALLOW : forbidden('requires task participant');
+    case 'task.collaborators':
+      return manager || owner ? ALLOW : forbidden('requires task manager or owner');
+    case 'task.collaborators.leave':
+      return collaborator ? ALLOW : forbidden('not a collaborator');
+  }
+}
+
+/** Ai tạo được Task theo phạm vi (§4.6). */
+function canCreateTask(actor: ActorContext, d: TaskDraftObject): Decision {
+  if (d.scopeType === 'private') return ALLOW;
+  if (d.scopeType === 'group') {
+    if (actor.groupRoles.has(d.groupId!) || isOrgAdmin(actor)) return ALLOW;
+    return forbidden('requires group member');
+  }
+  if (!viewsEvent(actor, d.event!)) return hidden('cannot view event');
+  if (d.event!.status === 'cancelled') return forbidden('event cancelled');
+  return managesTaskScope(actor, d) ? ALLOW : forbidden('requires event scope manager');
+}
+
+/**
+ * AD-16: giao cho người khác mà người tạo/giao không quản lý phạm vi → requires_acceptance bị ép true.
+ * Tự giao cho mình: không cần nhận.
+ */
+export function forcedAcceptance(a: ActorContext, t: Pick<TaskObject, 'scopeType' | 'event' | 'groupId'>, ownerId: string | null, requested: boolean): boolean {
+  if (!ownerId || ownerId === a.userId) return false;
+  if (t.scopeType === 'private') return true;
+  return managesTaskScope(a, t) ? requested : true;
+}
+
+/** read(conversation): anchor group → thành viên nhóm (AD-11); anchor event → view(event); anchor task → view(task). */
 function readsConversation(actor: ActorContext, c: ConversationObject): boolean {
   if (c.anchor.type === 'group') return actor.groupRoles.has(c.anchor.id);
+  if (c.anchor.type === 'task') return viewsTask(actor, c.anchor.task);
   return viewsEvent(actor, c.anchor.event);
 }
 
@@ -233,7 +352,8 @@ function canMessage(actor: ActorContext, action: MessageAction, m: MessageObject
       if (own || isOrgAdmin(actor)) return ALLOW;
       if (c.anchor.type === 'group' && actor.groupRoles.get(c.anchor.id) === 'leader') return ALLOW;
       if (c.anchor.type === 'event' && isEventOwner(actor, c.anchor.event)) return ALLOW;
-      return forbidden('requires sender, group leader, event owner or org admin');
+      if (c.anchor.type === 'task' && managesTask(actor, c.anchor.task)) return ALLOW;
+      return forbidden('requires sender, group leader, event owner, task manager or org admin');
   }
 }
 

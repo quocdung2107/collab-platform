@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { api } from '../lib/api';
 import { go, href } from '../lib/route';
 import { useAction } from '../lib/useLoad';
+import { Today } from './Today';
 
 const ROLE: Record<string, string> = { owner: 'Chủ sở hữu', admin: 'Quản trị', member: 'Thành viên' };
 export const roleLabel = (r: string) => ROLE[r] ?? r;
@@ -11,6 +12,8 @@ export function Home({ me, onChanged }: { me: MeResponse; onChanged: () => void 
   const [name, setName] = useState('');
   const { busy, error, run } = useAction();
   return (
+    <>
+    {me.memberships.length > 0 && <Today meId={me.user.id} />}
     <section className="card">
       <h1>Xin chào, {me.user.displayName}</h1>
       {me.memberships.length === 0 ? (
@@ -46,5 +49,6 @@ export function Home({ me, onChanged }: { me: MeResponse; onChanged: () => void 
       </form>
       {error && <p className="error">{error}</p>}
     </section>
+    </>
   );
 }

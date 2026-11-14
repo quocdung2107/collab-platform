@@ -2,7 +2,11 @@ import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose';
 import type { Db } from '../src/db/pool.js';
 import { buildApp } from '../src/http/app.js';
 import { supabaseVerifier } from '../src/http/auth.js';
+import { dispatchPending } from '../src/modules/notifications/notifier.js';
 import { MemoryRealtime } from '../src/modules/realtime/publisher.js';
+import { MemoryStorage } from '../src/modules/files/storage.js';
+import { dispatchDeliveries } from '../src/modules/push/deliver.js';
+import { MemoryPushSender } from '../src/modules/push/sender.js';
 import { freshDb } from './db.js';
 
 export const SUPABASE_URL = 'https://test.supabase.co';
@@ -14,11 +18,15 @@ export async function createHarness() {
   const { publicKey, privateKey } = await generateKeyPair('ES256');
   const jwk = { ...(await exportJWK(publicKey)), kid: 'k1', alg: 'ES256' };
   const realtime = new MemoryRealtime();
+  const storage = new MemoryStorage();
+  const push = new MemoryPushSender();
   const app = await buildApp({
     db,
     verifyToken: supabaseVerifier(SUPABASE_URL, createLocalJWKSet({ keys: [jwk] })),
     realtime,
     webOrigins: ['http://localhost:5173'],
+    storage,
+    push,
   });
 
   const sign = (claims: Record<string, unknown>, o: { iss?: string; aud?: string; exp?: string } = {}) =>
@@ -33,7 +41,7 @@ export async function createHarness() {
   /** Một người dùng thử; lần gọi đầu tạo users nội bộ qua /v1/me. */
   async function user(name: string) {
     const token = await sign({ sub: `sub-${name}`, email: `${name.toLowerCase()}@example.com`, user_metadata: { full_name: name } });
-    const call = async (method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, body?: unknown, headers: Record<string, string> = {}) => {
+    const call = async (method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE', url: string, body?: unknown, headers: Record<string, string> = {}) => {
       const r = await app.inject({ method, url, payload: body as object | undefined, headers: { authorization: `Bearer ${token}`, ...headers } });
       return { status: r.statusCode, body: r.body ? (r.json() as any) : null, headers: r.headers };
     };
@@ -41,7 +49,18 @@ export async function createHarness() {
     return { name, id: me.body.user.id as string, token, call };
   }
 
-  return { app, db, realtime, sign, user, close: async () => (await app.close(), await db.end()) };
+  /** Chạy notifier tới khi outbox rỗng; lỗi xử lý sự kiện làm kiểm thử thất bại. */
+  const dispatch = () =>
+    dispatchPending(db, realtime, {
+      onError: (e) => {
+        throw e;
+      },
+    });
+
+  /** Gửi mọi delivery đến hạn theo đồng hồ đẩy hiện tại. */
+  const deliver = () => dispatchDeliveries(db, push);
+
+  return { app, db, realtime, storage, push, deliver, sign, user, dispatch, close: async () => (await app.close(), await db.end()) };
 }
 
 export type Harness = Awaited<ReturnType<typeof createHarness>>;

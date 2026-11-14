@@ -82,7 +82,8 @@ export interface TemplateDefinition {
   durationMin: number;
   groupIds: string[];
   positions: Array<{ name: string; groupId: string | null; slots: number; reportOffsetMin: number }>;
-  tasks: Array<{ title: string; dueOffsetMin: number }>;
+  /** Task mẫu; dueOffsetMin so với giờ bắt đầu buổi (null = không hạn). */
+  tasks: Array<{ title: string; dueOffsetMin: number | null }>;
 }
 
 export interface EventTemplateDto {
@@ -90,4 +91,11 @@ export interface EventTemplateDto {
   name: string;
   definition: TemplateDefinition;
   version: number;
+}
+
+/** Kết quả trả lời/gỡ: Event null nếu người gọi không còn xem được (vd. từ chối ở buổi chỉ nhóm thấy). */
+export interface AssignmentResultDto {
+  assignmentId: string;
+  status: AssignmentStatus;
+  event: EventDto | null;
 }

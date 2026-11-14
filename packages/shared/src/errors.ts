@@ -12,6 +12,8 @@ export const ERROR_CODES = [
   'not_a_member',
   'read_only',
   'rate_limited',
+  /** Dịch vụ phụ thuộc chưa cấu hình / không sẵn sàng (vd. Storage chưa có khoá). */
+  'unavailable',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
