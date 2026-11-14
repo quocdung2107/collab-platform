@@ -9,13 +9,13 @@ Cập nhật: 2026-11-14. Nguồn tiêu chí: `docs/spec/MVP_ACCEPTANCE_CRITERIA
 | Thử nghiệm | OD-19 realtime (AD-31), OD-17 push iPhone, OD-18 Zalo | #2, #5, #7 |
 | S3 | F1 tổ chức/lời mời/thành viên, F2 nhóm, F14 truy cập chéo (một phần) | #4 |
 | Hạ tầng | API trên Render, web Pages nối API | #6 |
+| S4 | Hội thoại nhóm (F9a) | #8 |
+| S5 | Event, Position, xếp người, mẫu, sao chép, thread Event (F3, F4) | PR S5 |
 
 ## Thứ tự còn lại
 
 | Lát | Nội dung | Tiêu chí | Phụ thuộc | Ghi chú |
 | --- | --- | --- | --- | --- |
-| S4 | **Hội thoại nhóm (F9a)**: Conversation theo nhóm, tin nhắn, trả lời, mention, sửa/xoá, đã đọc, `client_msg_id`, realtime, chỉ-đọc khi nhóm lưu trữ | F9-T1,T2,T5(một phần),T7,T9; F14 T-đường hội thoại | S3 | Gỡ `TODO(F9)` ở nhóm. Thông báo mention ghi ở S6 |
-| S5 | **Event + Position + xếp người (F3, F4)**: nháp/mẫu/sao chép, publish, Assignment `draft→requested`, thread của Event | F3-T1,T5,T6; F4-T1..T5 | S4 | Phần thông báo của F3-T2..T4 kiểm ở S6 |
 | S6 | **Lõi thông báo (F11a)**: bộ `notifier` đọc `activity_events`, bản ghi theo lớp, khử trùng/gộp, `superseded`, hộp thông báo | F11-T1..T5, T10..T15 (trừ đẩy); F3-T2..T4; F9-T3,T6 | S5 | Chưa gửi đẩy; chỉ bản ghi |
 | S7 | **Trả lời, gỡ, thay người (F5, F6)** | F5-T1..T7; F6-T1..T5 | S6 | Gỡ `TODO(F4–F8)` phần Assignment khi gỡ thành viên (F1-T4) |
 | S8 | **My Workspace (F12)** | F12-T1..T5; E2E-3 | S7 | Màn hình chính của người dùng |

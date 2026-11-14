@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { useRealtime } from '../lib/realtime';
 import { go, href } from '../lib/route';
 import { useAction, useLoad } from '../lib/useLoad';
+import { Calendar } from './Calendar';
 import { roleLabel } from './Home';
 
 export function OrgPage({ orgId, meId, onMembershipChanged }: { orgId: string; meId: string; onMembershipChanged: () => void }) {
@@ -34,6 +35,8 @@ export function OrgPage({ orgId, meId, onMembershipChanged }: { orgId: string; m
         <p className="hint">Vai trò của bạn: {roleLabel(o.myRole)}</p>
         {act.error && <p className="error">{act.error}</p>}
       </section>
+
+      <Calendar orgId={orgId} meId={meId} canCreate={isAdmin || (groups.data ?? []).some((g) => g.myRole === 'leader' && !g.archived)} />
 
       <section className="card">
         <h2>Nhóm</h2>

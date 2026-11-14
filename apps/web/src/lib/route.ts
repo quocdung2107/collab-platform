@@ -2,27 +2,39 @@ import { useEffect, useState } from 'react';
 
 /**
  * Định tuyến bằng hash để chạy được trên GitHub Pages (không có rewrite phía máy chủ).
- * #org=<id> · #group=<id> · #invite=<token> · #od17
+ * #org=<id> · #group=<id> · #event=<id> · #newevent=<orgId> · #invite=<token> · #od17
  */
 export type Route =
   | { name: 'home' }
   | { name: 'org'; id: string }
   | { name: 'group'; id: string }
+  | { name: 'event'; id: string }
+  /** Tạo Event trong tổ chức id; copy = Event nguồn khi "sao chép buổi trước". */
+  | { name: 'newevent'; id: string; copy?: string }
   | { name: 'invite'; token: string }
   | { name: 'od17' };
 
 export function parseRoute(hash: string): Route {
   const h = hash.replace(/^#/, '');
   if (h === 'od17') return { name: 'od17' };
-  const [k, v] = h.split('=', 2);
+  // split('=', 2) của JS bỏ phần sau dấu '=' thứ hai → tách tại dấu '=' đầu tiên.
+  const i = h.indexOf('=');
+  const [k, v] = i < 0 ? [h, ''] : [h.slice(0, i), h.slice(i + 1)];
   if (v && k === 'org') return { name: 'org', id: v };
   if (v && k === 'group') return { name: 'group', id: v };
+  if (v && k === 'event') return { name: 'event', id: v };
+  if (v && k === 'newevent') {
+    const j = v.indexOf('&copy=');
+    return j < 0 ? { name: 'newevent', id: v } : { name: 'newevent', id: v.slice(0, j), copy: v.slice(j + 6) };
+  }
   if (v && k === 'invite') return { name: 'invite', token: v };
   return { name: 'home' };
 }
 
 export const href = (r: Route) =>
-  r.name === 'home' ? '#' : r.name === 'od17' ? '#od17' : r.name === 'invite' ? `#invite=${r.token}` : `#${r.name}=${r.id}`;
+  r.name === 'newevent'
+    ? `#newevent=${r.id}${r.copy ? `&copy=${r.copy}` : ''}`
+    : r.name === 'home' ? '#' : r.name === 'od17' ? '#od17' : r.name === 'invite' ? `#invite=${r.token}` : `#${r.name}=${r.id}`;
 
 export const go = (r: Route) => {
   window.location.hash = href(r);

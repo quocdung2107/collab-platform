@@ -95,6 +95,13 @@ Nguồn phát là module trong `PRODUCT_MODEL.md`. Người nhận: xem ma trậ
 
 Sửa Event `draft` chỉ phát `event.updated`/`position.*`; không phát sự kiện Assignment cho tới khi publish.
 
+Mẫu Event (thêm khi xây S5; không tạo thông báo, chỉ để Lịch sử của tổ chức):
+
+| Verb | Phát khi | Payload chính |
+| --- | --- | --- |
+| `template.created` | Tạo mẫu (trống hoặc từ một Event) | `name`, `from_event_id?` |
+| `template.archived` | Lưu trữ mẫu | `name` |
+
 ### 2.3 Tasks
 
 | Verb | Phát khi | Payload chính |

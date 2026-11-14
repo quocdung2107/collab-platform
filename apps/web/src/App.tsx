@@ -5,9 +5,11 @@ import { api, errorText } from './lib/api';
 import { detectBrowser } from './lib/embeddedBrowser';
 import { go, pendingInvite, useRoute } from './lib/route';
 import { signInWithGoogle, signOut, supabase, supabaseConfigured } from './lib/supabase';
+import { EventPage } from './pages/EventPage';
 import { GroupPage } from './pages/GroupPage';
 import { Home } from './pages/Home';
 import { InvitePage } from './pages/InvitePage';
+import { NewEventPage } from './pages/NewEventPage';
 import { OpenInBrowser } from './pages/OpenInBrowser';
 import { OrgPage } from './pages/OrgPage';
 import { PushTest } from './pages/PushTest';
@@ -119,6 +121,8 @@ export function App() {
       {route.name === 'invite' && <InvitePage token={route.token} onJoined={reloadMe} />}
       {route.name === 'org' && <OrgPage key={route.id} orgId={route.id} meId={me.user.id} onMembershipChanged={reloadMe} />}
       {route.name === 'group' && <GroupPage key={route.id} groupId={route.id} meId={me.user.id} />}
+      {route.name === 'event' && <EventPage key={route.id} eventId={route.id} meId={me.user.id} />}
+      {route.name === 'newevent' && <NewEventPage key={route.id + (route.copy ?? '')} orgId={route.id} copyFrom={route.copy} />}
       {route.name === 'home' && <Home me={me} onChanged={reloadMe} />}
       <button className="button small" onClick={() => signOut()}>
         Đăng xuất

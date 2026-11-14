@@ -33,7 +33,7 @@ const pendingStore = {
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
-export function ChatPanel({ conversationId, meId, members }: { conversationId: string; meId: string; members: GroupMemberDto[] }) {
+export function ChatPanel({ conversationId, meId, members }: { conversationId: string; meId: string; members: Array<Pick<GroupMemberDto, 'userId' | 'displayName'>> }) {
   const [conv, setConv] = useState<ConversationSummaryDto | null>(null);
   const [messages, setMessages] = useState<MessageDto[]>([]);
   const [hasMore, setHasMore] = useState(false);

@@ -20,6 +20,10 @@ Các quyết định ở mức triển khai, không thay đổi AD nào trong `d
 | IN-14 | Hội thoại: cấp `seq` bằng `UPDATE conversations SET last_seq = last_seq + 1` sau khi khoá dòng hội thoại; kiểm `client_msg_id` trong cùng khoá | F9-T1/T2: seq liền mạch, gửi lặp đồng thời không tạo tin thứ hai, không thủng seq | Sequence Postgres riêng cho mỗi hội thoại: nhiều đối tượng DB; `max(seq)+1`: đua khi đồng thời |
 | IN-15 | Kênh realtime `conversation:{id}` (thêm vào `rt.can_read_topic`, `db/supabase/0003_realtime_conversation.sql`); tín hiệu `conversation.message` / `conversation.message_changed` mang `conversation_id`, `seq`, không nội dung | EVENT_API_CONTRACTS §3; hội thoại Event/Task sau này có người đọc khác thành viên nhóm nên không dùng chung `group:{id}` | Dùng `group:{id}`: sai người nhận khi có hội thoại Event |
 | IN-16 | Tin chưa gửi được giữ ở `localStorage` theo hội thoại, gửi lại cùng `clientMsgId` khi có mạng | F9-T7 không cần service worker đồng bộ nền | Background Sync API: Safari chưa hỗ trợ |
+| IN-17 | Xếp người khoá dòng `positions` (`FOR UPDATE`) rồi đếm Assignment chiếm chỗ; chỉ mục duy nhất một phần `(position_id, user_id)` với trạng thái `draft/requested/accepted/reconfirm` | F4-T1 (đúng một người vào chỗ cuối), F4-T2 (`duplicate_assignment`) cả khi đồng thời | Ràng buộc đếm bằng trigger: khó trả mã lỗi rõ |
+| IN-18 | Quyền xem Event viết hai lần: `viewsEvent()` trong `can.ts` và `rt.can_view_event()` (`db/supabase/0004_realtime_event.sql`) cho kênh `event:{id}` và hội thoại Event; một bài kiểm thử so khớp hai bên trên cùng dữ liệu | AD-31: RLS realtime là lớp thứ hai, không được lỏng hơn Backend | Không cho kênh `event:` (chỉ `user:`): người xem Event không thấy thay đổi tức thời |
+| IN-19 | Event đã công bố: PATCH không đổi `starts_at/ends_at/location` (`invalid_transition`); giao diện khoá ô | Dời lịch/đổi địa điểm cần `event.rescheduled`/`event.relocated` + xác nhận lại (F7, S9) | Cho sửa thẳng: người được xếp không được báo |
+| IN-20 | Mẫu Event lưu `definition jsonb` (thời lượng, nhóm, Position, Task); tạo từ mẫu bỏ nhóm đã lưu trữ và trả `warnings[archived_group_skipped]`; Task trong mẫu bỏ qua tới S10 | F3-T6; định nghĩa mẫu không cần truy vấn quan hệ | Bảng con cho từng phần mẫu: nhiều bảng cho dữ liệu ít đọc |
 
 ## Chưa làm, có chủ đích
 
@@ -27,4 +31,5 @@ Các quyết định ở mức triển khai, không thay đổi AD nào trong `d
 - Tệp đính kèm trong tin nhắn: S11.
 - Hệ quả của gỡ thành viên lên Assignment/Task/Event/Subscription/thiết bị đẩy (F1-T4/T5): làm cùng F4–F8, đánh dấu `TODO(F4–F8)` trong `members.ts`.
 - Nhắc org admin khi nhóm mất trưởng nhóm cuối cùng: làm cùng F11.
+- S5: huỷ Event, dời lịch, đổi địa điểm, gỡ người khỏi Event đã công bố, nhận/từ chối Assignment → S7/S9. Tín hiệu `access_changed` khi đổi `visibility`/nhóm của Event đã công bố → S9 (`TODO(S9)`).
 - ESLint/Prettier: thêm khi có nhiều người/agent cùng sửa mã.

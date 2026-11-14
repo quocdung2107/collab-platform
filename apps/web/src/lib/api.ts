@@ -14,6 +14,12 @@ import type {
   MemberDto,
   OrganizationDto,
   OrgRole,
+  CreatedAssignmentDto,
+  CreatedEventDto,
+  EventDto,
+  EventSummaryDto,
+  EventTemplateDto,
+  EventVisibility,
 } from '@collab/shared';
 import { supabase } from './supabase';
 
@@ -99,6 +105,49 @@ export const api = {
   deleteMessage: (messageId: string) => request<MessageDto>(`/v1/messages/${messageId}`, json('DELETE')),
   markRead: (conversationId: string, seq: number) =>
     request<ConversationSummaryDto>(`/v1/conversations/${conversationId}/read`, json('POST', { seq })),
+
+  events: (orgId: string, q: { from: string; to: string; mine?: boolean }) =>
+    request<EventSummaryDto[]>(`/v1/organizations/${orgId}/events?${new URLSearchParams({ from: q.from, to: q.to, ...(q.mine ? { mine: 'true' } : {}) })}`),
+  createEvent: (orgId: string, body: NewEventBody) => request<CreatedEventDto>(`/v1/organizations/${orgId}/events`, json('POST', body, true)),
+  event: (eventId: string) => request<EventDto>(`/v1/events/${eventId}`),
+  updateEvent: (eventId: string, body: EventPatch & { expectedVersion: number }) => request<EventDto>(`/v1/events/${eventId}`, json('PATCH', body)),
+  deleteDraft: (eventId: string, expectedVersion: number) => request(`/v1/events/${eventId}`, json('DELETE', { expectedVersion })),
+  publishEvent: (eventId: string, expectedVersion: number) =>
+    request<{ event: EventDto; requestedCount: number }>(`/v1/events/${eventId}/publish`, json('POST', { expectedVersion })),
+  changeOwners: (eventId: string, body: { expectedVersion: number; add?: string[]; remove?: string[] }) =>
+    request<EventDto>(`/v1/events/${eventId}/owners`, json('POST', body)),
+  createPosition: (eventId: string, body: PositionBody) => request<EventDto>(`/v1/events/${eventId}/positions`, json('POST', body, true)),
+  updatePosition: (positionId: string, body: Partial<PositionBody> & { expectedVersion: number }) =>
+    request<EventDto>(`/v1/positions/${positionId}`, json('PATCH', body)),
+  removePosition: (positionId: string) => request<EventDto>(`/v1/positions/${positionId}`, json('DELETE')),
+  assign: (positionId: string, userId: string) => request<CreatedAssignmentDto>(`/v1/positions/${positionId}/assignments`, json('POST', { userId })),
+  cancelDraftAssignment: (assignmentId: string) => request<EventDto>(`/v1/assignments/${assignmentId}`, json('DELETE')),
+
+  templates: (orgId: string) => request<EventTemplateDto[]>(`/v1/organizations/${orgId}/templates`),
+  templateFromEvent: (eventId: string, name: string) => request<EventTemplateDto>(`/v1/events/${eventId}/template`, json('POST', { name }, true)),
+  archiveTemplate: (templateId: string) => request(`/v1/templates/${templateId}/archive`, json('POST')),
 };
+
+export interface EventPatch {
+  title?: string;
+  description?: string;
+  location?: string;
+  startsAt?: string;
+  endsAt?: string;
+  groupIds?: string[];
+  visibility?: EventVisibility;
+}
+export interface NewEventBody extends EventPatch {
+  startsAt: string;
+  templateId?: string;
+  copyFromId?: string;
+  keepPeople?: boolean;
+}
+export interface PositionBody {
+  name: string;
+  groupId: string | null;
+  slots: number;
+  reportOffsetMin: number;
+}
 
 export const errorText = (e: unknown) => (e instanceof ApiError ? e.message : 'Không kết nối được máy chủ. Thử lại sau.');

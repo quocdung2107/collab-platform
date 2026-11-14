@@ -26,7 +26,7 @@ language sql stable security definer set search_path = '' as $$
                              and a.status in ('requested', 'accepted', 'reconfirm'))))
        ));
 $$;
-revoke all on function rt.can_view_event(uuid, uuid) from public;
+revoke all on function rt.can_view_event(uuid, uuid) from public, anon, authenticated;
 
 create or replace function rt.can_read_topic(topic text) returns boolean
 language plpgsql stable security definer set search_path = '' as $$
