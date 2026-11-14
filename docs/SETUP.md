@@ -20,7 +20,8 @@ Các bước này cần chủ dự án làm trên giao diện web; mã nguồn k
    - Authorized JavaScript origins: `http://localhost:5173` và tên miền web thật.
    - Authorized redirect URIs: `https://<ref>.supabase.co/auth/v1/callback`
 3. Supabase → Authentication → Sign In / Providers → Google: dán Client ID và Client Secret, bật.
-4. Supabase → Authentication → URL Configuration: Site URL = địa chỉ web; thêm `http://localhost:5173` vào Redirect URLs.
+4. Supabase → Authentication → URL Configuration: Site URL = địa chỉ web; thêm `http://localhost:5173` và `https://quocdung2107.github.io/collab-platform/` vào Redirect URLs.
+5. Google OAuth client: thêm `https://quocdung2107.github.io` vào Authorized JavaScript origins.
 
 ## 3. Kiểm tra đầu-cuối
 
@@ -28,4 +29,6 @@ Các bước này cần chủ dự án làm trên giao diện web; mã nguồn k
 2. Bấm “Đăng nhập bằng Google” → sau khi quay lại thấy “Xin chào, <tên>”.
 3. Trong cơ sở dữ liệu có một dòng mới ở `app.users` với `auth_subject` = id người dùng Supabase.
 
-Thử OD-18 (trình duyệt nhúng) cần web chạy ở địa chỉ công khai HTTPS, thuộc Bước 2.
+## 4. Bản web công khai cho thử nghiệm (OD-17, OD-18)
+
+Bật repo → Settings → Pages → Source: **GitHub Actions**. Mỗi lần nhánh `main` thay đổi, workflow `pages.yml` triển khai web tới `https://quocdung2107.github.io/collab-platform/`.

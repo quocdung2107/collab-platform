@@ -5,6 +5,7 @@ import { api, ApiError } from './lib/api';
 import { detectBrowser } from './lib/embeddedBrowser';
 import { signInWithGoogle, signOut, supabase, supabaseConfigured } from './lib/supabase';
 import { OpenInBrowser } from './pages/OpenInBrowser';
+import { PushTest } from './pages/PushTest';
 
 export function App() {
   const browser = useMemo(() => detectBrowser(navigator.userAgent), []);
@@ -25,6 +26,14 @@ export function App() {
       .then(setMe)
       .catch((e: unknown) => setError(e instanceof ApiError ? `${e.body.code}: ${e.message}` : String(e)));
   }, [session]);
+
+  if (window.location.hash === '#od17') {
+    return (
+      <main>
+        <PushTest />
+      </main>
+    );
+  }
 
   if (!supabaseConfigured) {
     return (
