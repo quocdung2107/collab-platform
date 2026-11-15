@@ -175,6 +175,15 @@ Chỉ mục: `(event_id, sort)`.
 - Chỉ mục: `(user_id, status)`; `(event_id, status)`; `(position_id, status)`.
 - Bất biến (kiểm tra trong giao dịch, có khoá dòng Position): số Assignment đang hiệu lực của một Position ≤ `slots` (OD-15).
 
+**Kế hoạch nhiều cấp (AD-32, dự kiến; thêm theo lộ trình P2–P4 trong `docs/design/lich-nhieu-cap.md`)**
+
+| Bảng / cột | Ghi chú |
+| --- | --- |
+| `plan_periods`: `id`, `org_id →`, `name`, `starts_on : date`, `ends_on : date`, `kind : enum(period, special_day)`, `color`, `note?`, `created_by`, `archived_at?`, `version` | Giai đoạn; có thể chồng nhau; ngày đặc biệt là giai đoạn một ngày |
+| `event_series`: `id`, `org_id →`, `name`, `template_id →event_templates`, `rule : jsonb`, `local_time : time`, `starts_on`, `until_on?`, `group_ids`, `visibility`, `created_by`, `archived_at?`, `version` | `rule` chỉ ba dạng: mỗi n tuần theo thứ; thứ n (hoặc cuối) của tháng; ngày cố định trong năm. Giờ địa phương theo `organizations.timezone` |
+| `series_variants`: `id`, `series_id →`, `selector : jsonb`, `action : jsonb`, `version` | selector: ngày cụ thể / thứ n của tháng / trong Giai đoạn; action: đổi mẫu / đổi giờ / bỏ qua |
+| `events` thêm `series_id →event_series?`, `occurrence_on : date?`, `detached_at?` | UNIQUE `(series_id, occurrence_on)`; `detached_at` = đã sửa riêng, không đổi theo Nhịp |
+
 **`event_templates`**
 
 | Cột | Ghi chú |

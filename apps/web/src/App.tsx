@@ -9,6 +9,7 @@ import { go, href, isTabRoot, pendingInvite, tabOf, useRoute, type Route } from 
 import { useLoad } from './lib/useLoad';
 import { signInWithGoogle, signOut, supabase, supabaseConfigured } from './lib/supabase';
 import { CalendarTab } from './pages/Calendar';
+import { Planner } from './pages/Planner';
 import { Chats } from './pages/Chats';
 import { Groups } from './pages/Groups';
 import { ChatScreen } from './pages/ChatScreen';
@@ -125,7 +126,7 @@ export function App() {
   const unreadCount = counts.data?.unreadCount ?? 0;
   const isAdmin = org?.role === 'owner' || org?.role === 'admin';
   const actions = <TopActions unread={unreadCount} pending={pendingCount} initials={initialsOf(me.user.displayName)} />;
-  const needsOrg = route.name === 'calendar' || route.name === 'chats' || route.name === 'groups';
+  const needsOrg = route.name === 'calendar' || route.name === 'plan' || route.name === 'chats' || route.name === 'groups';
   const picker =
     needsOrg && org ? (
       me.memberships.length > 1 ? (
@@ -152,7 +153,7 @@ export function App() {
       ) : (
         <NavHeader route={route} title={screenTitle ?? { title: TITLE[route.name] }} actions={route.name === 'chat' ? null : actions} />
       )}
-      <main className={route.name === 'chat' ? 'content chat-content' : 'content'} key={href(route)}>
+      <main className={route.name === 'chat' ? 'content chat-content' : route.name === 'plan' ? 'content wide' : 'content'} key={href(route)}>
         {needsOrg && !org && (
           <section className="card">
             <p className="hint">Bạn chưa thuộc tổ chức nào.</p>
@@ -163,6 +164,7 @@ export function App() {
         )}
         {route.name === 'home' && <Home me={me} onChanged={reloadMe} />}
         {route.name === 'calendar' && org && <CalendarTab key={org.orgId} orgId={org.orgId} meId={me.user.id} isAdmin={isAdmin} />}
+        {route.name === 'plan' && org && <Planner key={org.orgId} orgId={org.orgId} meId={me.user.id} />}
         {route.name === 'chats' && org && <Chats key={org.orgId} orgId={org.orgId} meId={me.user.id} />}
         {route.name === 'groups' && org && <Groups key={org.orgId} orgId={org.orgId} meId={me.user.id} isAdmin={isAdmin} />}
         {route.name === 'me' && <Me me={me} currentOrgId={org?.orgId ?? null} onChanged={reloadMe} />}
@@ -185,6 +187,7 @@ export function App() {
 const TITLE: Record<Route['name'], string> = {
   home: 'Việc của tôi',
   calendar: 'Lịch',
+  plan: 'Lập lịch',
   chats: 'Chat',
   groups: 'Nhóm',
   me: 'Tài khoản',

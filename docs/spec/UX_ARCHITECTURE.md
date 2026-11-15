@@ -111,6 +111,15 @@ Dời lịch `[MVP]`: nhập giờ mới → màn hình xác nhận liệt kê s
 - **Trạng thái:** rỗng · chỉ có bản nháp · quá khứ (cuộn lên).
 - **Ngoại lệ:** xếp người vào Position đã đủ `slots` → từ chối kèm gợi ý tăng số người cần; xếp một người vào hai vị trí cùng buổi → cho phép sau cảnh báo; mẫu tham chiếu nhóm đã lưu trữ → bỏ qua phần đó và báo.
 
+#### 4.5b Lập lịch nhiều cấp (AD-32)
+
+- **Mục tiêu:** người điều phối thấy tổng quan năm → quý → tháng → tuần và phát hiện chỗ thiếu người, bản nháp chưa gửi, tuần trống.
+- **Lối vào:** nút "Lập lịch" trên tab Lịch, chỉ hiện cho org admin và trưởng nhóm. Thành viên không thấy chế độ này.
+- **Thành phần:** thanh chọn mức Năm · Quý · Tháng · Tuần; đường dẫn ngữ cảnh có lùi/tới; cây tổng quan (L2) với số chỗ cần chú ý trên mỗi nút; bảng Nhịp & Giai đoạn (L3) để ẩn/hiện từng nhịp. Máy tính ≥ 1024px: ba cột; điện thoại: L2 và L3 là bảng trượt.
+- **Mức Năm:** 12 tháng, mỗi tháng có số buổi, nháp, thiếu người. **Mức Quý:** ma trận tuần × nhịp (điện thoại: hàng = tuần; máy tính: hàng = nhịp). **Mức Tháng:** lưới tháng có chấm theo nhịp + danh sách theo tuần. **Mức Tuần:** dải 7 ngày + từng buổi với số vị trí đã lấp.
+- **Mã hoá trạng thái:** đã qua (xám) · đủ người (xanh) · thiếu (cam) · nháp (viền) · đã huỷ (gạch) · tuần trống giữa các buổi của cùng nhịp (viền cam đứt). Từ P3 thêm "dự kiến" (viền đứt xám), từ P4 thêm "cần quyết".
+- **Hành động:** chạm ô/buổi mở trang Buổi; chạm nút cây hoặc ô tháng để phóng tới. Từ P3: Tạo bản nháp theo khoảng, Lặp tuần/tháng này; từ P5: sửa nhịp theo phạm vi.
+
 ### 4.6 Task `[MVP]`
 
 - **Mục tiêu:** biết việc là gì, ai chịu trách nhiệm, đến đâu rồi.

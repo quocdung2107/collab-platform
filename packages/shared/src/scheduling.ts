@@ -60,6 +60,8 @@ export interface EventSummaryDto {
   endsAt: string;
   location: string | null;
   status: EventStatus;
+  /** Mẫu đã dùng khi tạo; lập lịch nhiều cấp gom buổi theo mẫu (IN-53). */
+  templateId: string | null;
   groups: Array<{ id: string; name: string }>;
   slotsTotal: number;
   slotsFilled: number;

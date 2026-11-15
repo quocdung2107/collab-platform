@@ -180,6 +180,9 @@ describe.skipIf(!TEST_DB_URL)('F3/F4: Event, Position, xếp người', () => {
         ['Phụ', null],
       ]);
       expect(r.body.warnings).toEqual([{ code: 'archived_group_skipped', detail: 'Ban Tạm' }]);
+      // Lập lịch nhiều cấp gom buổi theo mẫu (IN-53): danh sách lịch trả templateId.
+      const listed = (await AD.call('GET', `/v1/organizations/${orgId}/events?from=${at(6, 0)}&to=${at(8, 0)}`)).body;
+      expect(listed.find((e: { id: string }) => e.id === r.body.event.id)).toMatchObject({ templateId: t.body.id });
       const kids = await h.db.query(
         `select count(*)::int n from app.activity_events c join app.activity_events p on p.id = c.cause_id
           where p.verb = 'event.created' and p.object_id = $1 and c.verb = 'position.created'`,

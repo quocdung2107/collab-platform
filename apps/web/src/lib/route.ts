@@ -5,6 +5,7 @@ import { flushSync } from 'react-dom';
  * Định tuyến bằng hash để chạy được trên GitHub Pages (không có rewrite phía máy chủ).
  * #org=<id> · #group=<id> · #event=<id> · #task=<id> · #newevent=<orgId> · #invite=<token> · #inbox · #settings
  * Gốc của 4 tab (UX §2): # (Việc của tôi) · #calendar · #chats · #groups; menu cá nhân: #me
+ * Lập lịch nhiều cấp của tổ chức đang chọn (UX §4.5b): #plan
  */
 export type Route =
   | { name: 'home' }
@@ -20,12 +21,14 @@ export type Route =
   | { name: 'inbox' }
   | { name: 'settings' }
   | { name: 'calendar' }
+  /** Lập lịch nhiều cấp (AD-32) cho tổ chức đang chọn; chỉ người điều phối có lối vào. */
+  | { name: 'plan' }
   | { name: 'chats' }
   | { name: 'groups' }
   | { name: 'me' };
 
 /** Tên tuyến không tham số (ngoài home). */
-const SIMPLE = ['inbox', 'settings', 'calendar', 'chats', 'groups', 'me'] as const;
+const SIMPLE = ['inbox', 'settings', 'calendar', 'plan', 'chats', 'groups', 'me'] as const;
 type Simple = (typeof SIMPLE)[number];
 const isSimple = (h: string): h is Simple => (SIMPLE as readonly string[]).includes(h);
 
@@ -81,6 +84,7 @@ export function tabOf(r: Route): Tab | null {
     case 'task':
       return 'work';
     case 'calendar':
+    case 'plan':
     case 'event':
     case 'newevent':
       return 'calendar';
@@ -103,6 +107,7 @@ export function parentOf(r: Route): Route {
   switch (r.name) {
     case 'event':
     case 'newevent':
+    case 'plan':
       return { name: 'calendar' };
     case 'group':
       return { name: 'groups' };

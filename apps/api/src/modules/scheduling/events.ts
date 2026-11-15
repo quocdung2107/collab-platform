@@ -144,7 +144,7 @@ export async function listEvents(
       where org_id = $1 and starts_at < $3 and ends_at > $2
         and ($4::uuid is null or exists (select 1 from app.event_groups eg where eg.event_id = id and eg.group_id = $4))
       order by starts_at
-      limit 500`,
+      limit 1000`,
     [orgId, q.from, q.to, q.groupId ?? null],
   );
   const objs = await eventObjects(db, r.rows);
@@ -187,6 +187,7 @@ export async function listEvents(
         endsAt: e.ends_at.toISOString(),
         location: e.location,
         status: e.status,
+        templateId: e.template_id,
         groups: groups.rows.filter((g) => g.event_id === e.id).map((g) => ({ id: g.id, name: g.name })),
         slotsTotal: s?.total ?? 0,
         slotsFilled: s?.filled ?? 0,
