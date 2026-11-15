@@ -31,6 +31,16 @@ import type {
   RelatedDto,
   AttachmentDto,
   HistoryEntryDto,
+  EventSeriesDto,
+  MaterializeResultDto,
+  MonthProposalDto,
+  PlanDto,
+  PlanPeriodDto,
+  SeriesImpactDto,
+  SeriesRule,
+  SeriesVariantDto,
+  VariantAction,
+  VariantSelector,
 } from '@collab/shared';
 import { supabase } from './supabase';
 
@@ -174,6 +184,27 @@ export const api = {
   templateFromEvent: (eventId: string, name: string) => request<EventTemplateDto>(`/v1/events/${eventId}/template`, json('POST', { name }, true)),
   archiveTemplate: (templateId: string) => request(`/v1/templates/${templateId}/archive`, json('POST')),
 
+  // Lập lịch nhiều cấp (AD-32). Ngày dạng YYYY-MM-DD theo lịch của tổ chức.
+  plan: (orgId: string, from: string, to: string) => request<PlanDto>(`/v1/organizations/${orgId}/plan?${new URLSearchParams({ from, to })}`),
+  materialize: (orgId: string, body: { from: string; to: string; seriesIds?: string[]; only?: Array<{ seriesId: string; date: string }> }) =>
+    request<MaterializeResultDto>(`/v1/organizations/${orgId}/plan/materialize`, json('POST', body, true)),
+  createPeriod: (orgId: string, body: PeriodBody) => request<PlanPeriodDto>(`/v1/organizations/${orgId}/periods`, json('POST', body, true)),
+  updatePeriod: (periodId: string, body: Partial<PeriodBody> & { expectedVersion: number }) => request<PlanPeriodDto>(`/v1/periods/${periodId}`, json('PATCH', body)),
+  archivePeriod: (periodId: string) => request(`/v1/periods/${periodId}/archive`, json('POST')),
+  createSeries: (orgId: string, body: SeriesBody) => request<EventSeriesDto>(`/v1/organizations/${orgId}/series`, json('POST', body, true)),
+  seriesFromEvents: (orgId: string, body: { items: Array<{ eventId: string; rule?: SeriesRule }>; interval?: number; untilOn: string | null }) =>
+    request<EventSeriesDto[]>(`/v1/organizations/${orgId}/series/from-events`, json('POST', body, true)),
+  monthProposals: (orgId: string, month: string) => request<MonthProposalDto[]>(`/v1/organizations/${orgId}/plan/month-proposals?month=${month}`),
+  seriesFromMonth: (orgId: string, body: { items: Array<Pick<MonthProposalDto, 'eventId' | 'rule' | 'variantOfEventId'> & { kind: 'weekly' | 'monthly' | 'variant' }>; untilOn: string | null }) =>
+    request<{ series: EventSeriesDto[]; variants: SeriesVariantDto[] }>(`/v1/organizations/${orgId}/series/from-month`, json('POST', body, true)),
+  updateSeries: (seriesId: string, body: SeriesChange & { expectedVersion: number }) =>
+    request<{ series: EventSeriesDto; applied: number }>(`/v1/series/${seriesId}`, json('PATCH', body)),
+  previewSeries: (seriesId: string, body: SeriesChange) => request<SeriesImpactDto>(`/v1/series/${seriesId}/preview`, json('POST', body)),
+  archiveSeries: (seriesId: string) => request(`/v1/series/${seriesId}/archive`, json('POST')),
+  addVariant: (seriesId: string, body: { selector: VariantSelector; action: VariantAction }) =>
+    request<SeriesVariantDto>(`/v1/series/${seriesId}/variants`, json('POST', body, true)),
+  removeVariant: (variantId: string) => request(`/v1/variants/${variantId}`, json('DELETE')),
+
   notifications: (q: { before?: string; pending?: boolean } = {}) =>
     request<NotificationPageDto>(`/v1/notifications?${new URLSearchParams({ ...(q.before ? { before: q.before } : {}), ...(q.pending ? { pending: 'true' } : {}) })}`),
   notificationCounts: () => request<NotificationCountsDto>('/v1/notifications/counts'),
@@ -193,6 +224,34 @@ export const api = {
   notificationPrefs: () => request<NotificationPrefs>('/v1/me/notification-preferences'),
   saveNotificationPrefs: (p: NotificationPrefs) => request<NotificationPrefs>('/v1/me/notification-preferences', json('PUT', p)),
 };
+
+export interface PeriodBody {
+  name: string;
+  kind: 'period' | 'special_day';
+  startsOn: string;
+  endsOn?: string;
+  color?: PlanPeriodDto['color'];
+  note?: string | null;
+}
+export interface SeriesBody {
+  name?: string;
+  rule: SeriesRule;
+  localTime?: string;
+  startsOn?: string;
+  untilOn?: string | null;
+  location?: string | null;
+  templateId?: string;
+  sourceEventId?: string;
+}
+export interface SeriesChange {
+  scope: 'all' | 'from';
+  fromOn?: string;
+  name?: string;
+  localTime?: string;
+  durationMin?: number;
+  location?: string | null;
+  untilOn?: string | null;
+}
 
 export interface PushDevice {
   id: string;

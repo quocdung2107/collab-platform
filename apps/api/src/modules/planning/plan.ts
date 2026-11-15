@@ -359,8 +359,7 @@ export async function createSeries(ctx: CommandCtx, orgId: string, input: Series
     localTime ??= local.time;
     startsOn ??= local.date;
     location = input.location === undefined ? ev.row.location : location;
-    const sid = (await ctx.tx.query<{ series_id: string | null }>(`select series_id from app.events where id = $1`, [ev.row.id])).rows[0]!.series_id;
-    source = { id: ev.row.id, date: local.date, seriesId: sid };
+    source = { id: ev.row.id, date: local.date, seriesId: ev.row.series_id };
   } else if (input.templateId) {
     const t = await ctx.tx.query<{ id: string; name: string; definition: TemplateDefinition }>(
       `select id, name, definition from app.event_templates where id = $1 and org_id = $2 and archived_at is null`,

@@ -30,3 +30,5 @@ sửa riêng › ngày cụ thể › trong giai đoạn › thứ n của thán
 | P3 | Nhịp, buổi dự kiến, "Tạo bản nháp" theo khoảng, "Lặp tuần này" | `event_series`, cột mới trên `events` |
 | P4 | Biến thể, thứ tự ưu tiên, "cần quyết", "Lặp tháng này" | `series_variants` |
 | P5 | Sửa nhịp theo phạm vi; buổi đã gửi qua Dời lịch | — |
+
+Trạng thái 2026-11-15: P1–P5 đã làm trong PR #20 (migration `0010_planning`; IN-53..56). Ảnh P5: `/mnt/project-files/ui-redesign/lich-nhieu-cap/p5-*.png`.

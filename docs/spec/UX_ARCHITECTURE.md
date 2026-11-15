@@ -117,8 +117,9 @@ Dời lịch `[MVP]`: nhập giờ mới → màn hình xác nhận liệt kê s
 - **Lối vào:** nút "Lập lịch" trên tab Lịch, chỉ hiện cho org admin và trưởng nhóm. Thành viên không thấy chế độ này.
 - **Thành phần:** thanh chọn mức Năm · Quý · Tháng · Tuần; đường dẫn ngữ cảnh có lùi/tới; cây tổng quan (L2) với số chỗ cần chú ý trên mỗi nút; bảng Nhịp & Giai đoạn (L3) để ẩn/hiện từng nhịp. Máy tính ≥ 1024px: ba cột; điện thoại: L2 và L3 là bảng trượt.
 - **Mức Năm:** 12 tháng, mỗi tháng có số buổi, nháp, thiếu người. **Mức Quý:** ma trận tuần × nhịp (điện thoại: hàng = tuần; máy tính: hàng = nhịp). **Mức Tháng:** lưới tháng có chấm theo nhịp + danh sách theo tuần. **Mức Tuần:** dải 7 ngày + từng buổi với số vị trí đã lấp.
-- **Mã hoá trạng thái:** đã qua (xám) · đủ người (xanh) · thiếu (cam) · nháp (viền) · đã huỷ (gạch) · tuần trống giữa các buổi của cùng nhịp (viền cam đứt). Từ P3 thêm "dự kiến" (viền đứt xám), từ P4 thêm "cần quyết".
-- **Hành động:** chạm ô/buổi mở trang Buổi; chạm nút cây hoặc ô tháng để phóng tới. Từ P3: Tạo bản nháp theo khoảng, Lặp tuần/tháng này; từ P5: sửa nhịp theo phạm vi.
+- **Mã hoá trạng thái:** đã qua (xám) · đủ người (xanh) · thiếu (cam) · nháp (viền) · đã huỷ (gạch) · tuần trống giữa các buổi của cùng nhịp (viền cam đứt) · dự kiến (viền đứt xám, ghi ngày) · bỏ qua (gạch ngang) · cần quyết (nền cam, "!").
+- **Giai đoạn:** chip màu trên mỗi ô tháng (Năm), trên ma trận (Quý) và lưới tháng; ngày đặc biệt có ★ ở cột tuần và tô màu ô ngày.
+- **Hành động:** chạm buổi đã tạo mở trang Buổi; chạm buổi dự kiến/cần quyết mở bảng: Tạo bản nháp buổi này · Giữ cả hai · Bỏ buổi này · Đổi giờ buổi này · Sửa cả nhịp. Thanh hành động: "Tạo n bản nháp" cho khoảng đang xem (bỏ qua chỗ cần quyết), "Lặp tuần này…" (mức Tuần), "Lặp tháng này…" (mức Tháng), "+ Thêm" (nhịp từ mẫu, giai đoạn). Bảng Nhịp: Sửa nhịp với phạm vi Cả nhịp / Từ ngày, nút "Xem ảnh hưởng" bắt buộc trước khi lưu (số buổi dự kiến, bản nháp, buổi đã gửi và số người sẽ được báo dời lịch, buổi đã sửa riêng giữ nguyên); danh sách ngoại lệ; ngoại lệ theo giai đoạn; Ngừng nhịp.
 
 ### 4.6 Task `[MVP]`
 

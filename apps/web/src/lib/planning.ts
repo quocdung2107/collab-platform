@@ -1,12 +1,16 @@
-import type { EventSummaryDto } from '@collab/shared';
+import { ruleLabel, ruleWeekday, weekdayIso, type EventSeriesDto, type EventSummaryDto, type OccurrenceDto } from '@collab/shared';
 
 /**
  * Lập lịch nhiều cấp, bước P1 (AD-32, IN-53): hàm thuần tính khoảng thời gian, "nhịp" suy ra, trạng thái và
  * số liệu cho bốn mức Năm/Quý/Tháng/Tuần và cây tổng quan. Ngày theo giờ máy; tuần bắt đầu thứ Hai.
  */
 export type Zoom = 'year' | 'quarter' | 'month' | 'week';
-export type CellStatus = 'past' | 'ok' | 'short' | 'draft' | 'cancelled';
-export type Ev = Pick<EventSummaryDto, 'id' | 'title' | 'startsAt' | 'endsAt' | 'status' | 'templateId' | 'slotsTotal' | 'slotsFilled'>;
+export type CellStatus = 'past' | 'ok' | 'short' | 'draft' | 'cancelled' | 'projected' | 'skipped' | 'conflict';
+export type Ev = Pick<EventSummaryDto, 'id' | 'title' | 'startsAt' | 'endsAt' | 'status' | 'templateId' | 'slotsTotal' | 'slotsFilled'> & {
+  seriesId?: string | null;
+  /** Buổi của nhịp chưa tạo (P3): dự kiến hoặc bỏ qua; không có trang Buổi. */
+  occurrence?: OccurrenceDto;
+};
 
 export const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'] as const;
 /** Thứ trong tuần, 0 = thứ Hai … 6 = Chúa Nhật. */
@@ -93,6 +97,7 @@ export const startsIn = (e: Ev, p: Period) => {
 };
 
 export function statusOf(e: Ev, now: Date): CellStatus {
+  if (e.occurrence) return e.occurrence.state === 'skipped' ? 'skipped' : e.occurrence.conflict ? 'conflict' : 'projected';
   if (e.status === 'cancelled') return 'cancelled';
   if (new Date(e.endsAt) <= now) return 'past';
   if (e.status === 'draft') return 'draft';
@@ -100,6 +105,7 @@ export function statusOf(e: Ev, now: Date): CellStatus {
 }
 
 export const statusLabel = (e: Ev, s: CellStatus) =>
+  s === 'projected' ? 'dự kiến' : s === 'skipped' ? 'bỏ qua' : s === 'conflict' ? 'cần quyết' :
   s === 'past' ? 'đã qua' : s === 'cancelled' ? 'đã huỷ' : s === 'draft' ? 'nháp' : s === 'short' ? `thiếu ${e.slotsTotal - e.slotsFilled}` : 'đủ';
 
 // ---------------------------------------------------------------- nhịp suy ra (P1)
@@ -116,6 +122,8 @@ export interface Series {
   count: number;
   /** Chỉ số màu 0..5. */
   color: number;
+  /** Nhịp đã lưu (P3); không có = nhịp suy ra từ buổi cũ. */
+  real?: EventSeriesDto;
 }
 
 const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -135,21 +143,57 @@ export function rawSeriesKey(e: Ev): string {
   return `${e.templateId ? `t:${e.templateId}` : `n:${normTitle(e.title)}`}|${weekdayOf(d)}|${hhmm(d)}`;
 }
 
+/** Buổi dự kiến/bỏ qua của nhịp → dạng Ev để đi chung ma trận, danh sách, số liệu. */
+export function occurrenceItems(occ: OccurrenceDto[]): Ev[] {
+  return occ
+    .filter((o) => o.state !== 'materialized')
+    .map((o) => ({
+      id: `occ:${o.seriesId}:${o.date}`,
+      title: o.title,
+      startsAt: o.startsAt,
+      endsAt: o.endsAt,
+      status: 'draft' as const,
+      templateId: null,
+      slotsTotal: 0,
+      slotsFilled: 0,
+      seriesId: o.seriesId,
+      occurrence: o,
+    }));
+}
+
 export interface SeriesIndex {
   series: Series[];
   keyOf: Map<string, string>;
 }
 
-/** Gom buổi thành nhịp; nhịp có một buổi gom vào hàng "Buổi lẻ" ở cuối. Thứ tự: thứ trong tuần rồi giờ. */
-export function buildSeries(events: Ev[]): SeriesIndex {
+/**
+ * Gom buổi thành nhịp. Nhịp đã lưu (theo seriesId) đứng trước; buổi chưa thuộc nhịp nào được gom suy ra (IN-53);
+ * nhịp suy ra có một buổi gom vào hàng "Buổi lẻ" ở cuối. Thứ tự trong mỗi nhóm: thứ trong tuần rồi giờ.
+ */
+export function buildSeries(events: Ev[], real: EventSeriesDto[] = []): SeriesIndex {
   const groups = new Map<string, Ev[]>();
+  const keyOf = new Map<string, string>();
+  const known = new Set(real.map((s) => s.id));
+  const realRows: Series[] = real.map((s) => ({
+    key: `s:${s.id}`,
+    title: s.name,
+    weekday: ruleWeekday(s.rule) ?? weekdayIso(s.startsOn),
+    time: s.localTime,
+    count: 0,
+    color: 0,
+    real: s,
+  }));
   for (const e of events) {
+    if (e.seriesId && known.has(e.seriesId)) {
+      keyOf.set(e.id, `s:${e.seriesId}`);
+      realRows.find((r) => r.key === `s:${e.seriesId}`)!.count++;
+      continue;
+    }
     const k = rawSeriesKey(e);
     const g = groups.get(k);
     if (g) g.push(e);
     else groups.set(k, [e]);
   }
-  const keyOf = new Map<string, string>();
   const series: Series[] = [];
   let singles = 0;
   for (const [k, evs] of groups) {
@@ -165,13 +209,16 @@ export function buildSeries(events: Ev[]): SeriesIndex {
     const d = new Date(evs[0]!.startsAt);
     series.push({ key: k, title, weekday: weekdayOf(d), time: hhmm(d), count: evs.length, color: 0 });
   }
-  series.sort((a, b) => a.weekday - b.weekday || a.time.localeCompare(b.time) || a.title.localeCompare(b.title, 'vi'));
+  const order = (a: Series, b: Series) => a.weekday - b.weekday || a.time.localeCompare(b.time) || a.title.localeCompare(b.title, 'vi');
+  realRows.sort(order);
+  series.sort(order);
+  series.unshift(...realRows);
   series.forEach((s, i) => (s.color = i % 6));
   if (singles) series.push({ key: ONE_OFF, title: 'Buổi lẻ', weekday: -1, time: '', count: singles, color: -1 });
   return { series, keyOf };
 }
 
-export const seriesWhen = (s: Series) => (s.weekday < 0 ? 'chỉ một lần' : `${WEEKDAYS[s.weekday]} ${s.time}`);
+export const seriesWhen = (s: Series) => (s.real ? `${ruleLabel(s.real.rule)} ${s.time}` : s.weekday < 0 ? 'chỉ một lần' : `${WEEKDAYS[s.weekday]} ${s.time}`);
 
 // ---------------------------------------------------------------- số liệu
 
@@ -182,21 +229,27 @@ export interface Stats {
   cancelled: number;
   past: number;
   ok: number;
+  projected: number;
+  skipped: number;
+  conflict: number;
 }
-export const attention = (s: Stats) => s.draft + s.short;
+/** Cần người lập lịch để ý: nháp chưa gửi, thiếu người, chỗ trùng chưa quyết. */
+export const attention = (s: Stats) => s.draft + s.short + s.conflict;
 
 export function stats(events: Ev[], now: Date): Stats {
-  const s: Stats = { total: 0, draft: 0, short: 0, cancelled: 0, past: 0, ok: 0 };
+  const s: Stats = { total: 0, draft: 0, short: 0, cancelled: 0, past: 0, ok: 0, projected: 0, skipped: 0, conflict: 0 };
   for (const e of events) {
-    s.total++;
-    s[statusOf(e, now)]++;
+    const st = statusOf(e, now);
+    // Buổi bỏ qua không tính là một buổi.
+    if (st !== 'skipped') s.total++;
+    s[st]++;
   }
   return s;
 }
 
 /** Trạng thái "tệ nhất" của một nhóm buổi, để tô ô tuần ở mức Năm. */
 export function worst(events: Ev[], now: Date): CellStatus | null {
-  const order: CellStatus[] = ['short', 'draft', 'ok', 'past', 'cancelled'];
+  const order: CellStatus[] = ['conflict', 'short', 'draft', 'projected', 'ok', 'past', 'skipped', 'cancelled'];
   let best: number | null = null;
   for (const e of events) {
     const i = order.indexOf(statusOf(e, now));
@@ -225,7 +278,7 @@ export function matrix<T extends Ev>(weeks: Date[], series: Series[], events: T[
   }
   for (const [k, row] of out) {
     if (k === ONE_OFF) continue;
-    const filled = row.map((c) => c.events.some((e) => e.status !== 'cancelled'));
+    const filled = row.map((c) => c.events.some((e) => e.status !== 'cancelled' || !!e.occurrence));
     const first = filled.indexOf(true);
     const last = filled.lastIndexOf(true);
     for (let i = first + 1; i < last; i++) if (!filled[i] && !row[i]!.events.length) row[i]!.gap = true;

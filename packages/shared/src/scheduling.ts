@@ -41,6 +41,9 @@ export interface EventDto {
   status: EventStatus;
   visibility: EventVisibility;
   templateId: string | null;
+  /** Nhịp của buổi (AD-32); detached = đã sửa riêng, đổi nhịp không áp vào. */
+  seriesId: string | null;
+  detached: boolean;
   copiedFrom: string | null;
   groups: Array<{ id: string; name: string }>;
   owners: Array<{ userId: string; displayName: string }>;
@@ -62,6 +65,8 @@ export interface EventSummaryDto {
   status: EventStatus;
   /** Mẫu đã dùng khi tạo; lập lịch nhiều cấp gom buổi theo mẫu (IN-53). */
   templateId: string | null;
+  seriesId: string | null;
+  detached: boolean;
   groups: Array<{ id: string; name: string }>;
   slotsTotal: number;
   slotsFilled: number;

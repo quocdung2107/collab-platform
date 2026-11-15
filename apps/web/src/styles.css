@@ -446,6 +446,36 @@ a.pcell:active { opacity: 0.6; }
 .ws-d b { font-size: 16px; }
 .ws-d.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 .ws-d.today:not(.on) { border-color: var(--accent); }
+/* P2–P5: dự kiến, bỏ qua, cần quyết; giai đoạn */
+.s-projected { background: transparent; color: var(--muted); }
+.s-skipped { background: transparent; color: var(--muted); text-decoration: line-through; opacity: 0.7; }
+.s-conflict { background: var(--danger-soft); color: var(--danger); font-weight: 700; box-shadow: inset 0 0 0 1.5px var(--warn-line); }
+button.pcell { border: none; font: inherit; font-size: 12px; cursor: pointer; width: 100%; }
+button.pcell.s-projected { border: 1.5px dashed var(--muted); }
+.week-heat .s-projected { border: none; background: repeating-linear-gradient(135deg, var(--surface-2) 0 3px, var(--line) 3px 5px); }
+.week-heat .s-conflict { background: var(--danger); }
+.tag.dashed { background: transparent; border: 1px dashed var(--muted); }
+.plan-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.cell-link.occ { width: 100%; border: none; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.cell-link.occ.s-projected, .cell-link.occ.s-skipped { opacity: 0.75; }
+.series-li { display: flex; align-items: center; gap: 6px; }
+.plan-field { flex: 1; min-width: 120px; font-size: 13px; }
+.plan-subform { padding: 8px; border: 1px dashed var(--line); border-radius: 10px; }
+.plan-variant { min-height: 40px; }
+.sheet .row > input[type='radio'], .sheet .row > input[type='checkbox'] { flex: none; }
+.sheet fieldset label.row { flex-wrap: nowrap; }
+:root { --pc-green: #2f8f5b; --pc-gold: #b88a12; --pc-blue: #2f6fc0; --pc-orange: #d06b1d; --pc-violet: #7b52c4; --pc-red: #c23b3b; --pc-teal: #12808c; --pc-gray: #6b7280; }
+.pc-green { --pc: var(--pc-green); } .pc-gold { --pc: var(--pc-gold); } .pc-blue { --pc: var(--pc-blue); } .pc-orange { --pc: var(--pc-orange); }
+.pc-violet { --pc: var(--pc-violet); } .pc-red { --pc: var(--pc-red); } .pc-teal { --pc: var(--pc-teal); } .pc-gray { --pc: var(--pc-gray); }
+.pchip { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; color: var(--pc); background: color-mix(in srgb, var(--pc) 14%, transparent); border-left: 3px solid var(--pc); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; cursor: default; }
+span[role='button'].pchip { cursor: pointer; }
+h2 .pchip { margin-left: 8px; vertical-align: middle; }
+.pband-dot { width: 10px; height: 10px; border-radius: 3px; background: var(--pc); flex: none; }
+.pstar { font-style: normal; color: var(--pc); margin-left: 2px; font-size: 10px; }
+.mg-d.special { background: color-mix(in srgb, var(--pc) 14%, transparent); }
+.plan-colors { gap: 10px; }
+.pcolor { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; background: var(--pc); cursor: pointer; padding: 0; }
+.pcolor.on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--pc); }
 
 /* ---------- Máy tính: thanh bên trái thay thanh tab (phụ lục AD-25) ---------- */
 @media (min-width: 1024px) {

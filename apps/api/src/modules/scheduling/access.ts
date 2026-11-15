@@ -19,10 +19,12 @@ export interface EventRow {
   created_by: string;
   published_at: Date | null;
   version: number;
+  series_id: string | null;
+  detached_at: Date | null;
 }
 
 export const EVENT_COLS =
-  'id, org_id, title, description, location, starts_at, ends_at, status, visibility, template_id, copied_from, created_by, published_at, version';
+  'id, org_id, title, description, location, starts_at, ends_at, status, visibility, template_id, copied_from, created_by, published_at, version, series_id, detached_at';
 
 /** Biểu thức SQL cho cột detached_at: lệnh từ Nhịp giữ nguyên, sửa tay một buổi thuộc nhịp thì đánh dấu đã sửa riêng (AD-32). */
 export const DETACH = (fromSeriesParam: string) =>

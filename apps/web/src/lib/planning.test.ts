@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ONE_OFF, addDays, attention, buildSeries, matrix, normTitle, periodLabel, periodOf, shift, statusOf, weeksIn, yearFetchRange, yearTree } from './planning';
+import { ONE_OFF, addDays, attention, buildSeries, matrix, normTitle, occurrenceItems, periodLabel, periodOf, shift, stats, statusOf, weeksIn, yearFetchRange, yearTree, type Ev } from './planning';
 
 let n = 0;
 /** Buổi giả theo giờ máy: y, m (1–12), d, giờ. */
@@ -97,5 +97,46 @@ describe('cây tổng quan', () => {
     const jan = t.quarters[0]!.months[0]!;
     expect(jan.weeks[0]!.start).toEqual(new Date(2026, 11, 28));
     expect(jan.weeks.find((w) => w.start.getTime() === addDays(new Date(2027, 0, 18), 0).getTime())!.stats.short).toBe(1);
+  });
+});
+
+describe('nhịp đã lưu và buổi dự kiến (P3–P4)', () => {
+  const real = {
+    id: 'S',
+    name: 'Thờ phượng',
+    rule: { freq: 'weekly' as const, interval: 1, weekday: 6 },
+    localTime: '09:00',
+    startsOn: '2027-01-03',
+    untilOn: null,
+    location: null,
+    definition: { durationMin: 120, groupIds: [], positions: [], tasks: [] },
+    templateId: null,
+    version: 1,
+    variants: [],
+    canManage: true,
+  };
+  const occ = (date: string, state: 'projected' | 'skipped' | 'materialized', conflict = false) => ({
+    seriesId: 'S',
+    date,
+    startsAt: new Date(`${date}T09:00:00`).toISOString(),
+    endsAt: new Date(`${date}T11:00:00`).toISOString(),
+    title: 'Thờ phượng',
+    state,
+    eventId: null,
+    variantId: null,
+    conflict: conflict ? { reason: 'special_day' as const, label: 'Tết' } : null,
+  });
+  it('buổi đã tạo của nhịp vào hàng nhịp thật (đứng đầu); dự kiến/bỏ qua/cần quyết thành ô riêng; đã tạo không lặp lại', () => {
+    const made = { ...ev(2027, 1, 3, 9), seriesId: 'S' };
+    const items: Ev[] = [made, ev(2027, 1, 6, 19, { title: 'Cầu nguyện' }), ev(2027, 1, 13, 19, { title: 'Cầu nguyện' }), ...occurrenceItems([occ('2027-01-03', 'materialized'), occ('2027-01-10', 'projected'), occ('2027-01-17', 'skipped'), occ('2027-01-24', 'projected', true)])];
+    expect(items).toHaveLength(6);
+    const { series, keyOf } = buildSeries(items, [real]);
+    expect(series.map((s) => s.key)).toEqual(['s:S', expect.stringContaining('cau nguyen')]);
+    expect(series[0]!.count).toBe(4);
+    expect(keyOf.get(made.id)).toBe('s:S');
+    expect(items.slice(3).map((e) => statusOf(e, NOW))).toEqual(['projected', 'skipped', 'conflict']);
+    const s = stats(items.filter((e) => e.seriesId === 'S'), NOW);
+    expect(s).toMatchObject({ total: 3, projected: 1, skipped: 1, conflict: 1 });
+    expect(attention(s)).toBe(1);
   });
 });
