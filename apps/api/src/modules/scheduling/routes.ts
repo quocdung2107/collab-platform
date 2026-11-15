@@ -64,7 +64,7 @@ const respondBody = z.object({ response: z.enum(['accept', 'decline']), reason: 
 const statusBody = z.object({ expectedStatus: assignmentStatus.optional() });
 const replaceBody = z.object({ newUserId: z.uuid(), expectedStatus: assignmentStatus.optional() });
 const listQuery = z.object({ from: instant, to: instant, mine: z.enum(['true', 'false']).optional(), groupId: z.uuid().optional() });
-const definition = z.object({
+export const definitionSchema = z.object({
   durationMin: z.number().int().min(5).max(7 * 24 * 60),
   groupIds: uuids.default([]),
   positions: z
@@ -73,7 +73,7 @@ const definition = z.object({
     .default([]),
   tasks: z.array(z.object({ title, dueOffsetMin: z.number().int().nullable() })).max(100).default([]),
 });
-const templateBody = z.object({ name: z.string().trim().min(1).max(120), definition });
+const templateBody = z.object({ name: z.string().trim().min(1).max(120), definition: definitionSchema });
 const templateFromEventBody = z.object({ name: z.string().trim().min(1).max(120) });
 
 type P = { orgId?: string; eventId?: string; positionId?: string; assignmentId?: string; templateId?: string };

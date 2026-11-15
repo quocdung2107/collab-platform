@@ -4,7 +4,7 @@ import { AppError } from '../../http/errors.js';
 import { can, type ActorContext, type EventObject } from '../access/can.js';
 import { emit, signalAccessChanged } from '../activity/emit.js';
 import { topics } from '../realtime/publisher.js';
-import { EVENT_COLS, eventObjects, type EventRow } from './access.js';
+import { DETACH, EVENT_COLS, eventObjects, type EventRow } from './access.js';
 import { eventDetail, loadForEdit } from './events.js';
 import { lifecycleHooks } from './hooks.js';
 
@@ -31,7 +31,12 @@ function needsReconfirm(before: Date, after: Date, thresholdMin: number, timeZon
   return Math.abs(after.getTime() - before.getTime()) >= thresholdMin * 60_000 || day(before) !== day(after);
 }
 
-export async function rescheduleEvent(ctx: CommandCtx, eventId: string, input: { startsAt: string; endsAt: string; reason?: string; expectedVersion: number }) {
+export async function rescheduleEvent(
+  ctx: CommandCtx,
+  eventId: string,
+  input: { startsAt: string; endsAt: string; reason?: string; expectedVersion: number },
+  opts: { fromSeries?: boolean } = {},
+) {
   const { row, actor } = await loadPublished(ctx, eventId, input.expectedVersion);
   const startsAt = new Date(input.startsAt);
   const endsAt = new Date(input.endsAt);
@@ -46,7 +51,12 @@ export async function rescheduleEvent(ctx: CommandCtx, eventId: string, input: {
   const deltaMin = Math.round((startsAt.getTime() - row.starts_at.getTime()) / 60_000);
   const reconfirm = needsReconfirm(row.starts_at, startsAt, org.reconfirm_threshold_min, org.timezone);
 
-  await ctx.tx.query(`update app.events set starts_at = $2, ends_at = $3, version = version + 1, updated_at = now() where id = $1`, [eventId, startsAt, endsAt]);
+  await ctx.tx.query(`update app.events set starts_at = $2, ends_at = $3, detached_at = ${DETACH('$4')}, version = version + 1, updated_at = now() where id = $1`, [
+    eventId,
+    startsAt,
+    endsAt,
+    !!opts.fromSeries,
+  ]);
   const rootId = await emit(
     ctx,
     {
@@ -95,11 +105,11 @@ export async function rescheduleEvent(ctx: CommandCtx, eventId: string, input: {
   };
 }
 
-export async function relocateEvent(ctx: CommandCtx, eventId: string, input: { location: string | null; expectedVersion: number }) {
+export async function relocateEvent(ctx: CommandCtx, eventId: string, input: { location: string | null; expectedVersion: number }, opts: { fromSeries?: boolean } = {}) {
   const { row, actor } = await loadPublished(ctx, eventId, input.expectedVersion);
   const location = input.location?.trim() || null;
   if (location === row.location) throw new AppError('validation_failed', 'Địa điểm không đổi', { fields: { location: 'unchanged' } });
-  await ctx.tx.query(`update app.events set location = $2, version = version + 1, updated_at = now() where id = $1`, [eventId, location]);
+  await ctx.tx.query(`update app.events set location = $2, detached_at = ${DETACH('$3')}, version = version + 1, updated_at = now() where id = $1`, [eventId, location, !!opts.fromSeries]);
   await emit(
     ctx,
     { orgId: row.org_id, verb: 'event.relocated', object: { type: 'event', id: eventId }, context: { eventId }, payload: { before: row.location, after: location } },

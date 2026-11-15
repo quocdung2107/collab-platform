@@ -24,6 +24,10 @@ export interface EventRow {
 export const EVENT_COLS =
   'id, org_id, title, description, location, starts_at, ends_at, status, visibility, template_id, copied_from, created_by, published_at, version';
 
+/** Biểu thức SQL cho cột detached_at: lệnh từ Nhịp giữ nguyên, sửa tay một buổi thuộc nhịp thì đánh dấu đã sửa riêng (AD-32). */
+export const DETACH = (fromSeriesParam: string) =>
+  `case when ${fromSeriesParam}::boolean then detached_at when series_id is not null then coalesce(detached_at, now()) else detached_at end`;
+
 /** Trạng thái Assignment chiếm chỗ trong Position (OD-15). */
 export const OCCUPYING = ['draft', 'requested', 'accepted', 'reconfirm'] as const;
 /** Assignment "đang hiệu lực" cho view(event) visibility = groups: đã gửi tới người được xếp. */

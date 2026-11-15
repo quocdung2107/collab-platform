@@ -8,3 +8,4 @@ export * from './workspace.js';
 export * from './tasks.js';
 export * from './context.js';
 export * from './history.js';
+export * from './planning.js';
