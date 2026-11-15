@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 // VITE_BASE: đường dẫn gốc khi triển khai dưới thư mục con (GitHub Pages: /collab-platform/).
@@ -35,6 +36,8 @@ export default defineConfig({
       injectManifest: { globPatterns: ['**/*.{js,css,html,svg,woff2}'] },
     }),
   ],
+  // Web dùng thẳng mã nguồn của gói shared, không cần build dist.
+  resolve: { alias: { '@collab/shared': fileURLToPath(new URL('../../packages/shared/src/index.ts', import.meta.url)) } },
   server: { port: 5173 },
   test: { include: ['src/**/*.test.ts'] },
 });
