@@ -102,6 +102,17 @@ Mẫu Event (thêm khi xây S5; không tạo thông báo, chỉ để Lịch s�
 | `template.created` | Tạo mẫu (trống hoặc từ một Event) | `name`, `from_event_id?` |
 | `template.archived` | Lưu trữ mẫu | `name` |
 
+Lập lịch nhiều cấp (AD-32, P2–P5; không tạo thông báo, chỉ để Lịch sử của tổ chức; buổi tạo/sửa từ nhịp vẫn phát `event.*` như thường):
+
+| Verb | Phát khi | Payload chính |
+| --- | --- | --- |
+| `plan_period.created` / `plan_period.updated` / `plan_period.archived` | Giai đoạn, ngày đặc biệt | `name`, `kind`, `starts_on`, `ends_on` |
+| `series.created` | Tạo nhịp (từ mẫu, từ buổi, Lặp tuần/tháng này) | `name`, `rule`, `local_time`, `starts_on`, `until_on`, `source_event_id?` |
+| `series.updated` | Sửa nhịp; `split_from` khi tách từ một ngày | `scope`, `from_on`, `before`, `after`, `split_from?` |
+| `series.archived` | Ngừng nhịp | `name` |
+| `series.variant_added` / `series.variant_removed` | Ngoại lệ (bỏ, giữ, đổi) | `variant_id`, `selector`, `action` |
+| `series.materialized` | Tạo bản nháp từ buổi dự kiến | `from`, `to`, `count` |
+
 ### 2.3 Tasks
 
 | Verb | Phát khi | Payload chính |
@@ -314,6 +325,7 @@ Các lệnh khác của Task: `/respond` (`accept`/`decline`), `/status` (`in_pr
 | Nhóm | Tạo; sửa; lưu trữ; thêm/gỡ thành viên; đổi vai trò |
 | Event | Tạo (trống / từ mẫu / sao chép); sửa; xoá bản nháp; thêm/gỡ owner; Position: thêm/sửa/gỡ |
 | Mẫu | Tạo; sửa; lưu trữ; tạo mẫu từ Event |
+| Kế hoạch (AD-32) | `GET …/plan?from&to` (giai đoạn, nhịp, buổi dự kiến); `POST …/plan/materialize`; giai đoạn: tạo/sửa/lưu trữ; nhịp: tạo, `series/from-events` (Lặp tuần này), `plan/month-proposals` + `series/from-month` (Lặp tháng này), `PATCH /v1/series/:id` (phạm vi), `POST …/preview`, lưu trữ; ngoại lệ: thêm/xoá |
 | Hội thoại | Liệt kê; lấy tin theo `seq`; sửa/xoá tin; đánh dấu đã đọc tới `seq` |
 | Tệp | Xin địa chỉ tải lên; xác nhận; xin địa chỉ tải xuống; gỡ |
 | Link | Tạo; gỡ; lấy ngữ cảnh của một đối tượng |

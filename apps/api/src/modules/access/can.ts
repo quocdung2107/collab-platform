@@ -128,6 +128,8 @@ export type OrgAction =
   | 'org.owners.manage'
   | 'org.delete'
   | 'org.templates.manage'
+  /** Lập lịch nhiều cấp (AD-32): xem kế hoạch, quản lý Giai đoạn. Nhịp dùng event.create theo nhóm của nhịp. */
+  | 'org.plan.manage'
   | 'org.leave'
   | 'group.create';
 
@@ -369,6 +371,8 @@ function canOrg(actor: ActorContext, action: OrgAction, org: OrgObject): Decisio
     case 'org.templates.manage':
     case 'group.create': // OD-05 mặc định: chỉ org admin tạo nhóm
       return isOrgAdmin(actor) ? ALLOW : forbidden('requires org admin');
+    case 'org.plan.manage':
+      return isOrgAdmin(actor) || [...actor.groupRoles.values()].includes('leader') ? ALLOW : forbidden('requires org admin or a group leader');
     case 'org.owners.manage':
     case 'org.delete':
       return role === 'owner' ? ALLOW : forbidden('requires owner');

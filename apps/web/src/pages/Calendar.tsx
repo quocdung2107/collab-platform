@@ -62,6 +62,11 @@ export function Calendar({ orgId, meId, canCreate, groups = [] }: { orgId: strin
           ]}
           onChange={setFilter}
         />
+        {canCreate && (
+          <a className="button small" href={href({ name: 'plan' })}>
+            Lập lịch
+          </a>
+        )}
       </div>
       {filter === 'group' && (
         <select aria-label="Nhóm" value={pickedGroup} onChange={(e) => setGroupId(e.target.value)}>

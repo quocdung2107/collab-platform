@@ -11,7 +11,7 @@ import { emit } from '../activity/emit.js';
 import { viewOrg } from '../identity/organizations.js';
 import { ensureEventConversation } from '../messaging/conversations.js';
 import { topics } from '../realtime/publisher.js';
-import { ACTIVE, EVENT_COLS, eventObjects, OCCUPYING, viewEvent, type EventRow } from './access.js';
+import { ACTIVE, DETACH, EVENT_COLS, eventObjects, OCCUPYING, viewEvent, type EventRow } from './access.js';
 
 /**
  * Module Scheduling — Event (F3, PERMISSION_MODEL §4.4, EVENT_API_CONTRACTS §2.2, §5.1).
@@ -114,6 +114,8 @@ export async function eventDetail(db: Queryable, row: EventRow, obj: EventObject
     status: row.status,
     visibility: row.visibility,
     templateId: row.template_id,
+    seriesId: row.series_id,
+    detached: !!row.detached_at,
     copiedFrom: row.copied_from,
     groups: groups.rows,
     owners: owners.rows.map((o) => ({ userId: o.user_id, displayName: o.display_name })),
@@ -144,7 +146,7 @@ export async function listEvents(
       where org_id = $1 and starts_at < $3 and ends_at > $2
         and ($4::uuid is null or exists (select 1 from app.event_groups eg where eg.event_id = id and eg.group_id = $4))
       order by starts_at
-      limit 500`,
+      limit 1000`,
     [orgId, q.from, q.to, q.groupId ?? null],
   );
   const objs = await eventObjects(db, r.rows);
@@ -187,6 +189,9 @@ export async function listEvents(
         endsAt: e.ends_at.toISOString(),
         location: e.location,
         status: e.status,
+        templateId: e.template_id,
+        seriesId: e.series_id,
+        detached: !!e.detached_at,
         groups: groups.rows.filter((g) => g.event_id === e.id).map((g) => ({ id: g.id, name: g.name })),
         slotsTotal: s?.total ?? 0,
         slotsFilled: s?.filled ?? 0,
@@ -227,6 +232,10 @@ export interface CreateEventInput {
   templateId?: string;
   copyFromId?: string;
   keepPeople?: boolean;
+  /** Nội bộ (Nhịp, AD-32): định nghĩa chụp lại của Nhịp/Biến thể thay cho mẫu, và buổi thuộc nhịp nào, ngày nào. */
+  definition?: TemplateDefinition;
+  seriesId?: string;
+  occurrenceOn?: string;
 }
 
 interface PositionSeed {
@@ -250,7 +259,13 @@ export async function createEvent(ctx: CommandCtx, orgId: string, input: CreateE
   let copiedFrom: string | null = null;
   let taskSeeds: Array<{ title: string; description: string | null; dueOffsetMin: number | null }> = [];
 
-  if (input.templateId) {
+  if (input.definition) {
+    const def = input.definition;
+    durationMin = def.durationMin;
+    if (!input.groupIds) groupIds = def.groupIds;
+    seeds = def.positions.map((p) => ({ ...p, people: [] }));
+    taskSeeds = def.tasks.map((t) => ({ title: t.title, description: null, dueOffsetMin: t.dueOffsetMin }));
+  } else if (input.templateId) {
     const t = await ctx.tx.query<{ id: string; name: string; definition: TemplateDefinition }>(
       `select id, name, definition from app.event_templates where id = $1 and org_id = $2 and archived_at is null`,
       [input.templateId, orgId],
@@ -328,9 +343,9 @@ export async function createEvent(ctx: CommandCtx, orgId: string, input: CreateE
 
   const visibility = input.visibility ?? org.default_event_visibility;
   const ins = await ctx.tx.query<EventRow>(
-    `insert into app.events (org_id, title, title_norm, description, location, starts_at, ends_at, visibility, template_id, copied_from, created_by)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) returning ${EVENT_COLS}`,
-    [orgId, title, normalizeText(title), description, location, startsAt, endsAt, visibility, templateId, copiedFrom, ctx.user.id],
+    `insert into app.events (org_id, title, title_norm, description, location, starts_at, ends_at, visibility, template_id, copied_from, created_by, series_id, occurrence_on)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning ${EVENT_COLS}`,
+    [orgId, title, normalizeText(title), description, location, startsAt, endsAt, visibility, templateId, copiedFrom, ctx.user.id, input.seriesId ?? null, input.occurrenceOn ?? null],
   );
   const row = ins.rows[0]!;
   await ctx.tx.query(`insert into app.event_owners (event_id, user_id, org_id, added_by) values ($1, $2, $3, $2)`, [row.id, ctx.user.id, orgId]);
@@ -342,7 +357,7 @@ export async function createEvent(ctx: CommandCtx, orgId: string, input: CreateE
     verb: 'event.created',
     object: { type: 'event', id: row.id },
     context: { eventId: row.id },
-    payload: { title, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(), template_id: templateId, copied_from: copiedFrom },
+    payload: { title, starts_at: startsAt.toISOString(), ends_at: endsAt.toISOString(), template_id: templateId, copied_from: copiedFrom, series_id: input.seriesId ?? null },
   });
 
   // Task mẫu / sao chép (F3): không người phụ trách, hạn theo buổi; sự kiện lúc nháp không báo ai (IN-24).
@@ -417,7 +432,8 @@ export interface UpdateEventInput {
   notifyAssignees?: boolean;
 }
 
-export async function updateEvent(ctx: CommandCtx, eventId: string, input: UpdateEventInput) {
+/** opts.fromSeries: thay đổi do sửa Nhịp (AD-32); sửa tay một buổi của nhịp thì đánh dấu "đã sửa riêng" (detached_at). */
+export async function updateEvent(ctx: CommandCtx, eventId: string, input: UpdateEventInput, opts: { fromSeries?: boolean } = {}) {
   const { row, obj, actor } = await loadForEdit(ctx, eventId, input.expectedVersion);
   if (row.status === 'cancelled') throw new AppError('invalid_transition', 'Buổi đã huỷ, không sửa được');
 
@@ -457,9 +473,9 @@ export async function updateEvent(ctx: CommandCtx, eventId: string, input: Updat
 
   const u = await ctx.tx.query<EventRow>(
     `update app.events set title = $2, title_norm = $3, description = $4, location = $5, starts_at = $6, ends_at = $7, visibility = $8,
-            version = version + 1, updated_at = now()
+            detached_at = ${DETACH('$9')}, version = version + 1, updated_at = now()
       where id = $1 returning ${EVENT_COLS}`,
-    [eventId, next.title, normalizeText(next.title), next.description, next.location, next.starts_at, next.ends_at, next.visibility],
+    [eventId, next.title, normalizeText(next.title), next.description, next.location, next.starts_at, next.ends_at, next.visibility, !!opts.fromSeries],
   );
   if (changes.group_ids) {
     await ctx.tx.query(`delete from app.event_groups where event_id = $1`, [eventId]);

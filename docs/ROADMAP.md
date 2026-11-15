@@ -25,6 +25,11 @@ Cập nhật: 2026-11-14. Nguồn tiêu chí: `docs/spec/MVP_ACCEPTANCE_CRITERIA
 
 | Lát | Nội dung | Tiêu chí | Phụ thuộc | Ghi chú |
 | --- | --- | --- | --- | --- |
+| P1 | Lập lịch nhiều cấp: bốn mức + cây + bảng nhịp trên dữ liệu hiện có (IN-53) | AD-32, UX §4.5b | S5 | Không migration |
+| P2 | Giai đoạn và ngày đặc biệt (`plan_periods`) | AD-32 | P1 | Xong (PR #20, migration 0010) |
+| P3 | Nhịp, buổi dự kiến, Tạo bản nháp theo khoảng, Lặp tuần này | AD-32 | P2 | Xong (PR #20, IN-54) |
+| P4 | Biến thể, thứ tự ưu tiên, "cần quyết", Lặp tháng này | AD-32 | P3 | Xong (PR #20, IN-55) |
+| P5 | Sửa nhịp theo phạm vi; buổi đã gửi qua Dời lịch | AD-32, F7 | P4 | Xong (PR #20, IN-56) |
 
 ## Vì sao hội thoại đi trước Event
 - F3 yêu cầu "Conversation của Event được tạo" khi publish; F10 cần cả hai. Làm hội thoại trước thì Event dùng lại được, không phải để `TODO`.

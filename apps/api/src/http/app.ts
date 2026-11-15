@@ -13,6 +13,7 @@ import { fileRoutes } from '../modules/files/routes.js';
 import { setFileStorage, type FileStorage } from '../modules/files/storage.js';
 import { pushRoutes } from '../modules/push/routes.js';
 import { historyRoutes } from '../modules/history/routes.js';
+import { planningRoutes } from '../modules/planning/routes.js';
 import { setPushSender, type PushSender } from '../modules/push/sender.js';
 import { provisionUser, type UserRow } from '../modules/identity/users.js';
 import type { RealtimePublisher } from '../modules/realtime/publisher.js';
@@ -94,5 +95,6 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(fileRoutes);
   await app.register(pushRoutes);
   await app.register(historyRoutes);
+  await app.register(planningRoutes);
   return app;
 }

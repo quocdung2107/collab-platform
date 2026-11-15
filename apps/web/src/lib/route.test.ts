@@ -27,13 +27,16 @@ describe('parseRoute', () => {
 
 describe('tuyến của 4 tab', () => {
   it('quay vòng các tuyến không tham số', () => {
-    for (const name of ['calendar', 'chats', 'groups', 'me'] as const) expect(parseRoute(href({ name }))).toEqual({ name });
+    for (const name of ['calendar', 'plan', 'chats', 'groups', 'me'] as const) expect(parseRoute(href({ name }))).toEqual({ name });
   });
   it('mỗi màn hình chi tiết sáng đúng tab và có nơi quay về', () => {
     expect(tabOf({ name: 'event', id: 'x' })).toBe('calendar');
     expect(tabOf({ name: 'group', id: 'x' })).toBe('groups');
     expect(tabOf({ name: 'task', id: 'x' })).toBe('work');
     expect(tabOf({ name: 'inbox' })).toBeNull();
+    expect(tabOf({ name: 'plan' })).toBe('calendar');
+    expect(parentOf({ name: 'plan' })).toEqual({ name: 'calendar' });
+    expect(isTabRoot({ name: 'plan' })).toBe(false);
     expect(parentOf({ name: 'event', id: 'x' })).toEqual({ name: 'calendar' });
     expect(parentOf({ name: 'settings' })).toEqual({ name: 'me' });
     expect(isTabRoot({ name: 'chats' })).toBe(true);
