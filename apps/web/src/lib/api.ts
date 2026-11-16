@@ -92,6 +92,8 @@ export const api = {
 
   createOrg: (name: string) => request<OrganizationDto>('/v1/organizations', json('POST', { name }, true)),
   org: (orgId: string) => request<OrganizationDto>(`/v1/organizations/${orgId}`),
+  updateOrg: (orgId: string, body: { expectedVersion: number; name?: string; timezone?: string; defaultEventVisibility?: 'org' | 'groups'; reconfirmThresholdMin?: number }) =>
+    request<OrganizationDto>(`/v1/organizations/${orgId}`, json('PATCH', body)),
   members: (orgId: string) => request<MemberDto[]>(`/v1/organizations/${orgId}/members`),
   memberProfile: (orgId: string, userId: string) => request<MemberProfileDto>(`/v1/organizations/${orgId}/members/${userId}/profile`),
   setMemberRole: (orgId: string, userId: string, role: OrgRole) =>

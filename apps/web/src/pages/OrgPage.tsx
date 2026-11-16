@@ -1,4 +1,4 @@
-import type { CreatedInviteDto, OrgRole } from '@collab/shared';
+import type { CreatedInviteDto, OrganizationDto, OrgRole } from '@collab/shared';
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { useRealtime } from '../lib/realtime';
@@ -32,6 +32,8 @@ export function OrgPage({ orgId, meId, onMembershipChanged }: { orgId: string; m
         {act.error && <p className="error">{act.error}</p>}
       </section>
 
+      {isAdmin && <OrgInfo o={o} onSaved={reload} />}
+      {isAdmin && <Templates orgId={orgId} />}
       {isAdmin && <Invites orgId={orgId} groups={groups.data?.map((g) => ({ id: g.id, name: g.name })) ?? []} />}
 
       <section className="card">
@@ -52,7 +54,12 @@ export function OrgPage({ orgId, meId, onMembershipChanged }: { orgId: string; m
                     <select
                       value={m.role}
                       disabled={act.busy}
-                      onChange={(e) => void act.run(() => api.setMemberRole(orgId, m.userId, e.target.value as OrgRole), members.reload)}
+                      onChange={(e) => {
+                        const role = e.target.value as OrgRole;
+                        const run = () => act.run(() => api.setMemberRole(orgId, m.userId, role), members.reload);
+                        if (role === 'owner') confirmThen({ title: `Chuyển quyền chủ sở hữu cho ${m.displayName}?`, message: 'Chủ sở hữu có toàn quyền, gồm cả gỡ người khác và đổi vai trò của bạn. Chỉ làm khi bạn chắc chắn.', confirmLabel: 'Tiếp tục', danger: true }, () => confirmThen({ title: 'Xác nhận lần cuối', message: `Đặt ${m.displayName} làm chủ sở hữu?`, confirmLabel: `Đặt ${m.displayName} làm chủ sở hữu`, danger: true }, run));
+                        else void run();
+                      }}
                     >
                       {(isOwner ? ['owner', 'admin', 'member'] : ['admin', 'member']).map((r) => (
                         <option key={r} value={r}>
@@ -175,6 +182,93 @@ export function NotAvailable() {
       <a className="button" href="#">
         Về Việc của tôi
       </a>
+    </section>
+  );
+}
+
+const ZONES = ['Asia/Ho_Chi_Minh', 'Asia/Bangkok', 'Asia/Singapore', 'Asia/Seoul', 'Asia/Tokyo', 'Australia/Sydney', 'Europe/Paris', 'Europe/London', 'America/New_York', 'America/Chicago', 'America/Los_Angeles'];
+
+/** Thông tin tổ chức và mặc định (UX §4.10): tên, múi giờ, ai thấy buổi mới, ngưỡng xác nhận lại. */
+function OrgInfo({ o, onSaved }: { o: OrganizationDto; onSaved: () => void }) {
+  const [name, setName] = useState(o.name);
+  const [tz, setTz] = useState(o.timezone);
+  const [vis, setVis] = useState(o.defaultEventVisibility);
+  const [threshold, setThreshold] = useState(String(o.reconfirmThresholdMin));
+  const act = useAction();
+  const zones = ZONES.includes(tz) ? ZONES : [tz, ...ZONES];
+  const dirty = name.trim() !== o.name || tz !== o.timezone || vis !== o.defaultEventVisibility || Number(threshold) !== o.reconfirmThresholdMin;
+  return (
+    <section className="card">
+      <h2>Thông tin và mặc định</h2>
+      <form
+        className="grid"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void act.run(() => api.updateOrg(o.id, { expectedVersion: o.version, name, timezone: tz, defaultEventVisibility: vis, reconfirmThresholdMin: Number(threshold) }), onSaved);
+        }}
+      >
+        <label>
+          Tên tổ chức
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} required />
+        </label>
+        <label>
+          Múi giờ
+          <select value={tz} onChange={(e) => setTz(e.target.value)}>
+            {zones.map((z) => (
+              <option key={z} value={z}>
+                {z}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Buổi mới, ai thấy
+          <select value={vis} onChange={(e) => setVis(e.target.value as 'org' | 'groups')}>
+            <option value="org">Cả tổ chức</option>
+            <option value="groups">Chỉ các nhóm tham gia và người được xếp</option>
+          </select>
+        </label>
+        <label>
+          Dời giờ quá bao nhiêu phút thì người đã nhận phải xác nhận lại
+          <input type="number" inputMode="numeric" min={0} max={1440} value={threshold} onChange={(e) => setThreshold(e.target.value)} />
+        </label>
+        {act.error && <p className="error">{act.error}</p>}
+        <button className="button primary" disabled={act.busy || !dirty}>
+          Lưu
+        </button>
+      </form>
+    </section>
+  );
+}
+
+/** Mẫu buổi (UX §4.10): xem và lưu trữ; tạo mẫu từ một buổi có sẵn (Thao tác → Lưu làm mẫu). */
+function Templates({ orgId }: { orgId: string }) {
+  const list = useLoad(() => api.templates(orgId), [orgId]);
+  const act = useAction();
+  return (
+    <section className="card">
+      <h2>Mẫu buổi</h2>
+      {list.data?.length === 0 && <p className="hint">Chưa có mẫu. Mở một buổi, chọn Thao tác → Lưu làm mẫu.</p>}
+      <ul className="list">
+        {list.data?.map((t) => (
+          <li key={t.id}>
+            <span className="grid">
+              <strong>{t.name}</strong>
+              <span className="hint">
+                {t.definition.durationMin} phút · {t.definition.positions.length} vị trí{t.definition.tasks.length ? ` · ${t.definition.tasks.length} việc` : ''}
+              </span>
+            </span>
+            <button
+              className="button small danger"
+              disabled={act.busy}
+              onClick={() => confirmThen({ title: `Lưu trữ mẫu "${t.name}"?`, message: 'Buổi đã tạo từ mẫu này không đổi. Mẫu không còn hiện khi tạo buổi mới.', confirmLabel: 'Lưu trữ', danger: true }, () => act.run(() => api.archiveTemplate(t.id), list.reload))}
+            >
+              Lưu trữ
+            </button>
+          </li>
+        ))}
+      </ul>
+      {act.error && <p className="error">{act.error}</p>}
     </section>
   );
 }
