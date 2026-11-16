@@ -143,7 +143,7 @@ export async function listEvents(
   const { actor } = await viewOrg(db, userId, orgId);
   const r = await db.query<EventRow>(
     `select ${EVENT_COLS} from app.events
-      where org_id = $1 and starts_at < $3 and ends_at > $2
+      where org_id = $1 and deleted_at is null and starts_at < $3 and ends_at > $2
         and ($4::uuid is null or exists (select 1 from app.event_groups eg where eg.event_id = id and eg.group_id = $4))
       order by starts_at
       limit 1000`,
@@ -502,14 +502,6 @@ export async function updateEvent(ctx: CommandCtx, eventId: string, input: Updat
 }
 
 /** Xoá bản nháp: xoá cứng Event, Position, Assignment draft và ActivityEvent của riêng nó (DATA_MODEL §5). */
-export async function deleteDraft(ctx: CommandCtx, eventId: string, expectedVersion: number) {
-  const { row } = await loadForEdit(ctx, eventId, expectedVersion);
-  if (row.status !== 'draft') throw new AppError('invalid_transition', 'Chỉ xoá được bản nháp');
-  await ctx.tx.query(`delete from app.activity_events where event_id = $1`, [eventId]);
-  await ctx.tx.query(`delete from app.events where id = $1`, [eventId]);
-  return { id: eventId, deleted: true };
-}
-
 /** Publish (§5.1): draft → published; tạo hội thoại Event; mọi Assignment draft → requested (sự kiện con). */
 export async function publishEvent(ctx: CommandCtx, eventId: string, expectedVersion: number) {
   const { row, actor } = await loadForEdit(ctx, eventId, expectedVersion);

@@ -15,6 +15,7 @@ import {
   type PlanDto,
   type PlanPeriodDto,
   type SeriesImpactDto,
+  type SeriesRemovalDto,
   type SeriesRule,
   type SeriesVariantDto,
   type TemplateDefinition,
@@ -33,6 +34,7 @@ import { viewOrg } from '../identity/organizations.js';
 import { ACTIVE, viewEvent } from '../scheduling/access.js';
 import { createEvent, updateEvent } from '../scheduling/events.js';
 import { relocateEvent, rescheduleEvent } from '../scheduling/lifecycle.js';
+import { removeEvent } from '../scheduling/removal.js';
 import { eventTaskSeeds } from '../scheduling/templates.js';
 
 /**
@@ -140,6 +142,7 @@ interface MatRow {
   ends_at: Date;
   status: 'draft' | 'published' | 'cancelled';
   detached_at: Date | null;
+  deleted: boolean;
 }
 
 /** Tính các buổi của nhịp trong [from, to] (ngày địa phương): dự kiến, bỏ qua, đã tạo; kèm chỗ trùng. */
@@ -154,7 +157,7 @@ async function computeOccurrences(
 ) {
   const mat = series.length
     ? await db.query<MatRow>(
-        `select id, series_id, to_char(occurrence_on, 'YYYY-MM-DD') as occurrence_on, title, starts_at, ends_at, status, detached_at
+        `select id, series_id, to_char(occurrence_on, 'YYYY-MM-DD') as occurrence_on, title, starts_at, ends_at, status, detached_at, deleted_at is not null as deleted
            from app.events where series_id = any($1::uuid[]) and occurrence_on between $2 and $3`,
         [series.map((s) => s.row.id), from, to],
       )
@@ -162,7 +165,7 @@ async function computeOccurrences(
   // Buổi không thuộc nhịp (buổi lẻ, buổi đặc biệt) trong khoảng: dùng để phát hiện trùng giờ.
   const loose = await db.query<{ title: string; starts_at: Date; ends_at: Date }>(
     `select title, starts_at, ends_at from app.events
-      where org_id = $1 and series_id is null and status <> 'cancelled' and starts_at < $3 and ends_at > $2`,
+      where org_id = $1 and series_id is null and status <> 'cancelled' and deleted_at is null and starts_at < $3 and ends_at > $2`,
     [orgId, zonedToUtc(from, '00:00', tz), zonedToUtc(addDaysIso(to, 1), '00:00', tz)],
   );
   const special = periods.filter((p) => p.kind === 'special_day');
@@ -174,12 +177,14 @@ async function computeOccurrences(
     for (const m of mine) dates.add(m.occurrence_on);
     for (const date of [...dates].sort()) {
       const v = variantFor(vdto, date, periods);
-      const m = mine.find((x) => x.occurrence_on === date);
+      const hit = mine.find((x) => x.occurrence_on === date);
+      // Buổi đã xoá (AD-33) giữ chỗ ngày đó: hiện như "bỏ qua", không dự kiến lại.
+      const m = hit && !hit.deleted ? hit : undefined;
       const ov = v?.action.type === 'override' ? v.action : null;
       const def = ov?.definition ?? row.definition;
       const startsAt = m ? m.starts_at : zonedToUtc(date, ov?.localTime ?? row.local_time, tz);
       const endsAt = m ? m.ends_at : new Date(startsAt.getTime() + def.durationMin * 60_000);
-      const state = m ? 'materialized' : v?.action.type === 'skip' ? 'skipped' : 'projected';
+      const state = m ? 'materialized' : hit || v?.action.type === 'skip' ? 'skipped' : 'projected';
       let conflict: OccurrenceDto['conflict'] = null;
       if (state !== 'skipped' && m?.status !== 'cancelled' && v?.action.type !== 'keep') {
         const sd = special.find((p) => p.startsOn === date);
@@ -401,7 +406,7 @@ async function linkExisting(ctx: CommandCtx, s: SeriesRow, tz: string, sourceId:
   const until = s.until_on ?? addDaysIso(s.starts_on, MAX_RANGE_DAYS);
   const cands = await ctx.tx.query<{ id: string; title_norm: string; template_id: string | null; starts_at: Date }>(
     `select id, title_norm, template_id, starts_at from app.events
-      where org_id = $1 and series_id is null and starts_at >= $2 and starts_at < $3`,
+      where org_id = $1 and series_id is null and deleted_at is null and starts_at >= $2 and starts_at < $3`,
     [s.org_id, zonedToUtc(s.starts_on, '00:00', tz), zonedToUtc(addDaysIso(until, 1), '00:00', tz)],
   );
   const dates = new Set(expandRule(s.rule, s.starts_on, s.until_on, s.starts_on, until));
@@ -435,11 +440,62 @@ export async function seriesFromEvents(ctx: CommandCtx, orgId: string, input: { 
   return out;
 }
 
-export async function archiveSeries(ctx: CommandCtx, seriesId: string) {
+/** Buổi đã tạo (chưa xoá) của nhịp, kèm việc người gọi có quyền xoá không (event.edit). */
+async function seriesEvents(db: Queryable, userId: string, seriesId: string) {
+  const r = await db.query<{ id: string; status: 'draft' | 'published' | 'cancelled'; ends_at: Date; people: number }>(
+    `select e.id, e.status, e.ends_at,
+            (select count(distinct a.user_id) from app.assignments a where a.event_id = e.id and a.status = any($2::text[]))::int as people
+       from app.events e where e.series_id = $1 and e.deleted_at is null order by e.occurrence_on`,
+    [seriesId, ACTIVE],
+  );
+  const out = [];
+  for (const e of r.rows) {
+    const v = await viewEvent(db, userId, e.id).catch(() => null);
+    out.push({ ...e, canDelete: !!v && can(v.actor, 'event.edit', v.obj).allowed });
+  }
+  return out;
+}
+
+/** Xem trước khi xoá nhịp (AD-33): số buổi theo loại, để hộp xác nhận nói đúng hậu quả. */
+export async function seriesRemoval(db: Queryable, userId: string, seriesId: string): Promise<SeriesRemovalDto> {
+  const s = (await db.query<SeriesRow>(`select ${SERIES_COLS} from app.event_series where id = $1 and archived_at is null`, [seriesId])).rows[0];
+  if (!s) throw notFound();
+  await planner(db, userId, s.org_id);
+  const evs = await seriesEvents(db, userId, seriesId);
+  const now = Date.now();
+  const upcoming = evs.filter((e) => e.status === 'published' && e.ends_at.getTime() > now);
+  return {
+    total: evs.length,
+    drafts: evs.filter((e) => e.status === 'draft').length,
+    upcomingPublished: upcoming.length,
+    past: evs.filter((e) => e.status !== 'draft' && !(e.status === 'published' && e.ends_at.getTime() > now)).length,
+    peopleToNotify: upcoming.reduce((n, e) => n + e.people, 0),
+    blocked: evs.filter((e) => !e.canDelete).length,
+  };
+}
+
+/**
+ * Ngừng/xoá nhịp. events = 'keep': chỉ ngừng nhịp (buổi đã tạo giữ nguyên, như trước).
+ * events = 'all': xoá luôn mọi buổi đã tạo của nhịp (kể cả đã qua) qua removeEvent — buổi sắp tới đã công bố
+ * được huỷ và báo người được xếp. Dùng khi tạo trùng nhịp.
+ */
+export async function archiveSeries(ctx: CommandCtx, seriesId: string, input: { events?: 'keep' | 'all'; reason?: string } = {}) {
   const { row } = await seriesForEdit(ctx, seriesId);
+  let removed = 0;
+  let notified = 0;
+  if (input.events === 'all') {
+    const evs = await seriesEvents(ctx.tx, ctx.user.id, seriesId);
+    if (evs.some((e) => !e.canDelete)) throw new AppError('forbidden', 'Có buổi trong nhịp bạn không có quyền xoá (cần người phụ trách buổi hoặc quản trị)');
+    for (const e of evs) {
+      const v = (await ctx.tx.query<{ version: number }>(`select version from app.events where id = $1`, [e.id])).rows[0]!.version;
+      const r = await removeEvent(ctx, e.id, { expectedVersion: v, reason: input.reason });
+      removed++;
+      notified += r.notifiedCount;
+    }
+  }
   await ctx.tx.query(`update app.event_series set archived_at = now(), version = version + 1 where id = $1`, [seriesId]);
-  await emit(ctx, { orgId: row.org_id, verb: 'series.archived', object: { type: 'event_series', id: seriesId }, payload: { name: row.name } });
-  return { id: seriesId, archived: true };
+  await emit(ctx, { orgId: row.org_id, verb: 'series.archived', object: { type: 'event_series', id: seriesId }, payload: { name: row.name, removed_events: removed } });
+  return { id: seriesId, archived: true, removedEvents: removed, notifiedCount: notified };
 }
 
 /** "Tạo bản nháp" (P3): biến buổi dự kiến trong khoảng thành bản nháp. Chỗ trùng chưa quyết bị bỏ qua trừ khi được chọn đích danh. */
@@ -530,7 +586,7 @@ export async function monthProposals(db: Queryable, userId: string, orgId: strin
   const to = addDaysIso(isoDate(y, m + 1, 1), -1);
   const evs = await db.query<{ id: string; title: string; title_norm: string; template_id: string | null; starts_at: Date; series_id: string | null }>(
     `select id, title, title_norm, template_id, starts_at, series_id from app.events
-      where org_id = $1 and status <> 'cancelled' and starts_at >= $2 and starts_at < $3 order by starts_at`,
+      where org_id = $1 and status <> 'cancelled' and deleted_at is null and starts_at >= $2 and starts_at < $3 order by starts_at`,
     [orgId, zonedToUtc(from, '00:00', tz), zonedToUtc(addDaysIso(to, 1), '00:00', tz)],
   );
   const periods = await loadPeriods(db, orgId, from, to);
@@ -638,7 +694,7 @@ async function affected(db: Queryable, seriesId: string, fromOn: string) {
     await db.query<{ id: string; status: 'draft' | 'published' | 'cancelled'; detached_at: Date | null; version: number; starts_at: Date; ends_at: Date; title: string; location: string | null; occurrence_on: string; people: number }>(
       `select e.id, e.status, e.detached_at, e.version, e.starts_at, e.ends_at, e.title, e.location, to_char(e.occurrence_on, 'YYYY-MM-DD') as occurrence_on,
               (select count(distinct a.user_id) from app.assignments a where a.event_id = e.id and a.status = any($3::text[]))::int as people
-         from app.events e where e.series_id = $1 and e.occurrence_on >= $2 and e.status <> 'cancelled' order by e.occurrence_on`,
+         from app.events e where e.series_id = $1 and e.occurrence_on >= $2 and e.status <> 'cancelled' and e.deleted_at is null order by e.occurrence_on`,
       [seriesId, fromOn, ACTIVE],
     )
   ).rows;

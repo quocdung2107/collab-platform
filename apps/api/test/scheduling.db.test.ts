@@ -129,7 +129,7 @@ describe.skipIf(!TEST_DB_URL)('F3/F4: Event, Position, xếp người', () => {
       expect((await AD.call('PATCH', `/v1/events/${ev.id}`, { expectedVersion: p.version, title: 'Đổi tên' })).status).toBe(200);
     });
 
-    it('xoá bản nháp: xoá cứng Event và ActivityEvent của nó; bản đã publish không xoá được', async () => {
+    it('xoá bản nháp: xoá cứng Event và ActivityEvent của nó; bản đã publish chỉ ẩn mềm (AD-33)', async () => {
       const ev = await newEvent(AD);
       await addPosition(AD, ev.id);
       const d = await AD.call('DELETE', `/v1/events/${ev.id}`, { expectedVersion: (await AD.call('GET', `/v1/events/${ev.id}`)).body.version });
@@ -138,7 +138,8 @@ describe.skipIf(!TEST_DB_URL)('F3/F4: Event, Position, xếp người', () => {
       expect((await AD.call('GET', `/v1/events/${ev.id}`)).status).toBe(404);
       const pub = await newEvent(AD);
       const v = (await publish(AD, pub.id)).body.event.version;
-      expect((await AD.call('DELETE', `/v1/events/${pub.id}`, { expectedVersion: v })).body.error.code).toBe('invalid_transition');
+      expect((await AD.call('DELETE', `/v1/events/${pub.id}`, { expectedVersion: v })).body.mode).toBe('soft');
+      expect((await h.db.query(`select 1 from app.events where id = $1 and deleted_at is not null`, [pub.id])).rowCount).toBe(1);
     });
 
     it('người phụ trách: thêm OW; không gỡ được người cuối cùng; thành viên thường không sửa được', async () => {

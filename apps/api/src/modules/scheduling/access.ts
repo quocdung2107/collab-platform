@@ -21,10 +21,11 @@ export interface EventRow {
   version: number;
   series_id: string | null;
   detached_at: Date | null;
+  deleted_at: Date | null;
 }
 
 export const EVENT_COLS =
-  'id, org_id, title, description, location, starts_at, ends_at, status, visibility, template_id, copied_from, created_by, published_at, version, series_id, detached_at';
+  'id, org_id, title, description, location, starts_at, ends_at, status, visibility, template_id, copied_from, created_by, published_at, version, series_id, detached_at, deleted_at';
 
 /** Biểu thức SQL cho cột detached_at: lệnh từ Nhịp giữ nguyên, sửa tay một buổi thuộc nhịp thì đánh dấu đã sửa riêng (AD-32). */
 export const DETACH = (fromSeriesParam: string) =>
@@ -60,6 +61,7 @@ export async function eventObjects(db: Queryable, rows: EventRow[]): Promise<Map
       groupIds: groups.rows.filter((g) => g.event_id === r.id).map((g) => g.group_id),
       ownerIds: owners.rows.filter((o) => o.event_id === r.id).map((o) => o.user_id),
       activeAssigneeIds: assignees.rows.filter((a) => a.event_id === r.id).map((a) => a.user_id),
+      deleted: r.deleted_at !== null,
     });
   }
   return out;

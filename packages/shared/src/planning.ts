@@ -113,6 +113,20 @@ export interface SeriesImpactDto {
   people: number;
 }
 
+/** Xem trước khi xoá nhịp cùng các buổi của nó (AD-33). */
+export interface SeriesRemovalDto {
+  /** Buổi đã tạo, chưa xoá. */
+  total: number;
+  drafts: number;
+  /** Đã công bố, chưa kết thúc: sẽ huỷ và báo người được xếp. */
+  upcomingPublished: number;
+  /** Đã qua hoặc đã huỷ: ẩn, không báo ai. */
+  past: number;
+  peopleToNotify: number;
+  /** Buổi người gọi không có quyền xoá (cần người phụ trách buổi hoặc quản trị). */
+  blocked: number;
+}
+
 // ---------------------------------------------------------------- ngày
 
 const pad = (n: number) => String(n).padStart(2, '0');
