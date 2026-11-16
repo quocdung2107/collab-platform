@@ -48,3 +48,6 @@ Tệp `render.yaml` ở gốc repo mô tả dịch vụ `collab-api` (Node 22, v
 - Gói miễn phí ngủ sau ~15 phút không có yêu cầu; yêu cầu đầu tiên sau đó chậm khoảng một phút. Chấp nhận được cho thử nghiệm, không cho vận hành thật.
 - `uselibpqcompat=true&sslmode=require` mã hoá kết nối nhưng không xác minh chứng chỉ máy chủ (chứng chỉ Supabase ký bởi CA riêng). Trước khi chạy thật: tải CA từ Supabase (Database Settings → SSL) và dùng `sslmode=verify-full`.
 - Migration không chạy tự động khi khởi động; áp bằng `pnpm db:migrate` hoặc qua connector Supabase rồi ghi sổ `app.schema_migrations`.
+
+## Giữ API không ngủ (gói miễn phí)
+Render tắt dịch vụ miễn phí sau 15 phút không có yêu cầu; khởi động lại mất ~1 phút ([tài liệu Render](https://render.com/docs/free)). Vì bộ gửi thông báo đẩy chạy chung tiến trình API, API ngủ có thể làm đẩy trễ hoặc làm bản tóm tắt sau giờ yên lặng không đến đúng giờ. Workflow `.github/workflows/keepalive.yml` gọi `/healthz` mỗi 5 phút. Muốn tắt (vd. sau khi chuyển gói trả phí): vô hiệu workflow ở tab Actions. Cách kiểm: đặt giờ yên lặng kết thúc lúc 6:00, không mở app, xem bản tóm tắt có đến đúng giờ.
