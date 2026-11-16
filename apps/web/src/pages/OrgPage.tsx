@@ -42,11 +42,11 @@ export function OrgPage({ orgId, meId, onMembershipChanged }: { orgId: string; m
             const canEditRole = !self && (isOwner || (isAdmin && m.role !== 'owner'));
             return (
               <li key={m.userId}>
-                <span>
+                <a href={href({ name: 'member', orgId, id: m.userId })}>
                   {m.displayName}
                   {self && ' (bạn)'}
                   {m.email && <span className="hint"> · {m.email}</span>}
-                </span>
+                </a>
                 <span className="row">
                   {canEditRole ? (
                     <select

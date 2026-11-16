@@ -100,4 +100,26 @@ describe.skipIf(!TEST_DB_URL)('F12: My Workspace', () => {
     await AD.call('POST', `/v1/assignments/${await asgOf(e.ev.id, NEW)}/replace`, { newUserId: M1.id });
     expect((await ws(NEW)).needsResponse.some((x: { eventId: string }) => x.eventId === e.ev.id)).toBe(false);
   });
+
+  it('UX §4.7 hồ sơ thành viên: nhóm + sắp phục vụ; buổi riêng tư không lộ cho người ngoài; người lạ nhận 404', async () => {
+    const pub = await event('Hồ sơ công khai', 3, groups[0]!, [M1]);
+    const priv = (await AD.call('POST', `/v1/organizations/${orgId}/events`, { title: 'Họp kín', startsAt: inDays(4), endsAt: inDays(4, 11), groupIds: [groups[1]!], visibility: 'groups' })).body.event;
+    const pp = (await AD.call('POST', `/v1/events/${priv.id}/positions`, { name: 'Kín', groupId: groups[1]!, slots: 1 })).body.positions[0];
+    await AD.call('POST', `/v1/positions/${pp.id}/assignments`, { userId: M1.id });
+    await AD.call('POST', `/v1/events/${priv.id}/publish`, { expectedVersion: (await AD.call('GET', `/v1/events/${priv.id}`)).body.version });
+    const url = `/v1/organizations/${orgId}/members/${M1.id}/profile`;
+    const asAd = (await AD.call('GET', url)).body;
+    expect(asAd.member).toMatchObject({ userId: M1.id, displayName: 'M1', role: 'member' });
+    expect(asAd.groups.map((g: { name: string }) => g.name).sort()).toEqual(['Thiếu nhi', 'Âm thanh', 'Đón tiếp'].sort());
+    expect(asAd.upcoming.map((u: { eventTitle: string }) => u.eventTitle)).toEqual(expect.arrayContaining(['Hồ sơ công khai', 'Họp kín']));
+    // NEW không thuộc nhóm nào và không được xếp: chỉ thấy buổi công khai.
+    const asNew = (await NEW.call('GET', url)).body;
+    expect(asNew.upcoming.map((u: { eventTitle: string }) => u.eventTitle)).toContain('Hồ sơ công khai');
+    expect(asNew.upcoming.map((u: { eventTitle: string }) => u.eventTitle)).not.toContain('Họp kín');
+    expect(JSON.stringify(asNew)).not.toMatch(/lý do|reason/i);
+    expect(pub.ev.id).toBeTruthy();
+    const stranger = await h.user('STRANGER');
+    expect((await stranger.call('GET', url)).status).toBe(404);
+    expect((await AD.call('GET', `/v1/organizations/${orgId}/members/${stranger.id}/profile`)).status).toBe(404);
+  });
 });

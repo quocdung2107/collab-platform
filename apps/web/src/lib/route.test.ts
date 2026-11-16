@@ -12,6 +12,7 @@ describe('parseRoute', () => {
       { name: 'settings' },
       { name: 'event', id: '01a1d7cf-0000-7000-8000-000000000002' },
       { name: 'chat', id: '01a1d7cf-0000-7000-8000-000000000003' },
+      { name: 'member', orgId: '01a1d7cf-0000-7000-8000-000000000000', id: '01a1d7cf-0000-7000-8000-000000000009' },
       { name: 'newevent', id: '01a1d7cf-0000-7000-8000-000000000000' },
       { name: 'newevent', id: '01a1d7cf-0000-7000-8000-000000000000', copy: '01a1d7cf-0000-7000-8000-000000000002' },
     ] as const) {
@@ -21,6 +22,7 @@ describe('parseRoute', () => {
   it('hash lạ → home', () => {
     expect(parseRoute('#org=')).toEqual({ name: 'home' });
     expect(parseRoute('#foo=bar')).toEqual({ name: 'home' });
+    expect(parseRoute('#member=abc')).toEqual({ name: 'home' });
     expect(parseRoute('')).toEqual({ name: 'home' });
   });
 });

@@ -13,6 +13,7 @@ import { Planner } from './pages/Planner';
 import { Chats } from './pages/Chats';
 import { Groups } from './pages/Groups';
 import { ChatScreen } from './pages/ChatScreen';
+import { MemberPage } from './pages/MemberPage';
 import { Me } from './pages/Me';
 import { TaskPage } from './pages/Tasks';
 import { EventPage } from './pages/EventPage';
@@ -172,6 +173,7 @@ export function App() {
         {route.name === 'inbox' && <Inbox meId={me.user.id} onCounts={counts.reload} />}
         {route.name === 'invite' && <InvitePage token={route.token} onJoined={reloadMe} />}
         {route.name === 'org' && <OrgPage key={route.id} orgId={route.id} meId={me.user.id} onMembershipChanged={reloadMe} />}
+        {route.name === 'member' && <MemberPage key={route.id} orgId={route.orgId} userId={route.id} meId={me.user.id} />}
         {route.name === 'group' && <GroupPage key={route.id} groupId={route.id} meId={me.user.id} />}
         {route.name === 'event' && <EventPage key={route.id} eventId={route.id} meId={me.user.id} />}
         {route.name === 'chat' && <ChatScreen key={route.id} conversationId={route.id} meId={me.user.id} />}
@@ -200,4 +202,5 @@ const TITLE: Record<Route['name'], string> = {
   task: 'Việc',
   chat: 'Trò chuyện',
   newevent: 'Tạo buổi',
+  member: 'Thành viên',
 };

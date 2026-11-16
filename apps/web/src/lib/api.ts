@@ -12,6 +12,7 @@ import type {
   MessagePageDto,
   ConversationSummaryDto,
   MemberDto,
+  MemberProfileDto,
   OrganizationDto,
   OrgRole,
   CreatedAssignmentDto,
@@ -92,6 +93,7 @@ export const api = {
   createOrg: (name: string) => request<OrganizationDto>('/v1/organizations', json('POST', { name }, true)),
   org: (orgId: string) => request<OrganizationDto>(`/v1/organizations/${orgId}`),
   members: (orgId: string) => request<MemberDto[]>(`/v1/organizations/${orgId}/members`),
+  memberProfile: (orgId: string, userId: string) => request<MemberProfileDto>(`/v1/organizations/${orgId}/members/${userId}/profile`),
   setMemberRole: (orgId: string, userId: string, role: OrgRole) =>
     request(`/v1/organizations/${orgId}/members/${userId}`, json('PATCH', { role })),
   removeMember: (orgId: string, userId: string) => request(`/v1/organizations/${orgId}/members/${userId}`, json('DELETE')),

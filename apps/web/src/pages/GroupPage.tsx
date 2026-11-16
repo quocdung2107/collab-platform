@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { useRealtime } from '../lib/realtime';
-import { go } from '../lib/route';
+import { go, href } from '../lib/route';
 import { useAction, useLoad } from '../lib/useLoad';
 import { confirmThen } from '../ui/dialogs';
 import { Skeleton } from '../ui/kit';
@@ -62,10 +62,10 @@ export function GroupPage({ groupId, meId }: { groupId: string; meId: string }) 
       <ul className="list">
         {g.members.map((m) => (
           <li key={m.userId}>
-            <span>
+            <a href={href({ name: 'member', orgId: g.orgId, id: m.userId })}>
               {m.displayName}
               {m.userId === meId && ' (bạn)'}
-            </span>
+            </a>
             <span className="row">
               {canManage ? (
                 <select
