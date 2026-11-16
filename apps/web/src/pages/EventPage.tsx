@@ -1,6 +1,7 @@
 import type { EventDto, MemberDto, PositionDto } from '@collab/shared';
 import { useEffect, useState } from 'react';
 import { api, type EventPatch } from '../lib/api';
+import { downloadIcs } from '../lib/ics';
 import { addMinutes, fromLocalInput, rangeLabel, timeLabel, toLocalInput } from '../lib/datetime';
 import { useRealtime } from '../lib/realtime';
 import { go, href } from '../lib/route';
@@ -150,6 +151,11 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
           </li>
         </ul>
         {e.description && <p className="pre">{e.description}</p>}
+        {!isDraft && !cancelled && (
+          <button className="button small" onClick={() => downloadIcs(e)}>
+            <Icon name="calendar" size={16} /> Thêm vào lịch điện thoại
+          </button>
+        )}
         {notice && <p className="notice">{notice}</p>}
         {act.error && <p className="error">{act.error}</p>}
         {e.canEdit && (

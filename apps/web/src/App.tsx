@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { useEffect, useMemo, useState } from 'react';
 import { api, errorText } from './lib/api';
 import { detectBrowser } from './lib/embeddedBrowser';
+import { useOnline } from './lib/useOnline';
 import { useRealtime } from './lib/realtime';
 import { setCurrentOrg, useCurrentOrg } from './lib/currentOrg';
 import { go, href, isTabRoot, pendingInvite, tabOf, useRoute, type Route } from './lib/route';
@@ -37,6 +38,7 @@ export function App() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [meTick, setMeTick] = useState(0);
+  const net = useOnline();
   const route = useRoute();
   const reloadMe = () => setMeTick((t) => t + 1);
   const meId = me?.user.id;
@@ -154,7 +156,12 @@ export function App() {
       ) : (
         <NavHeader route={route} title={screenTitle ?? { title: TITLE[route.name] }} actions={route.name === 'chat' ? null : actions} />
       )}
-      <main className={route.name === 'chat' ? 'content chat-content' : route.name === 'plan' ? 'content wide' : 'content'} key={href(route)}>
+      {!net.online && (
+        <div className="banner warn offline" role="status">
+          Đang ngoại tuyến. Màn hình có thể là dữ liệu cũ và thao tác sẽ chưa gửi được; app tự tải lại khi có mạng.
+        </div>
+      )}
+      <main className={route.name === 'chat' ? 'content chat-content' : route.name === 'plan' ? 'content wide' : 'content'} key={`${href(route)}#${net.backAt}`}>
         {needsOrg && !org && (
           <section className="card">
             <p className="hint">Bạn chưa thuộc tổ chức nào.</p>

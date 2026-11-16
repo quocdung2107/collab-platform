@@ -561,3 +561,4 @@ h2 .pchip { margin-left: 8px; vertical-align: middle; }
 .month-day .dot.short { background: var(--danger); }
 .month-day .dot.none { visibility: hidden; }
 .month-head { margin-bottom: 0; }
+.banner.offline { margin: 8px 16px 0; position: sticky; top: 0; z-index: 5; }
