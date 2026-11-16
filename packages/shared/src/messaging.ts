@@ -10,6 +10,8 @@ export interface ConversationSummaryDto {
   /** Số tin người khác gửi, chưa xoá, có seq > lastReadSeq. */
   unreadCount: number;
   readOnly: boolean;
+  /** Tin người dùng gần nhất chưa xoá (không tính dòng hệ thống); null nếu chưa có. Người xem đọc được hội thoại thì đọc được tin này. */
+  lastMessage: { senderName: string; own: boolean; preview: string } | null;
 }
 
 export interface MessageDto {

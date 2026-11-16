@@ -37,7 +37,12 @@ export function Chats({ orgId, meId }: { orgId: string; meId: string }) {
               </span>
               <span className="grid">
                 <strong>{c.anchor.name}</strong>
-                <span className="hint">
+                {c.lastMessage && (
+                  <span className={c.unreadCount > 0 ? 'preview unread' : 'preview'}>
+                    {c.lastMessage.own ? 'Bạn' : c.lastMessage.senderName}: {c.lastMessage.preview}
+                  </span>
+                )}
+                <span className="hint small">
                   {KIND[c.anchor.type]}
                   {c.readOnly ? ' · chỉ đọc' : ''}
                   {c.lastMessageAt ? ` · ${when(c.lastMessageAt)}` : ''}

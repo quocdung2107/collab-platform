@@ -112,13 +112,18 @@ async function loadConversation(db: Queryable, userId: string, conversationId: s
 }
 
 async function summaries(db: Queryable, userId: string, where: string, params: unknown[]): Promise<ConversationSummaryDto[]> {
-  const r = await db.query<ConvRow & { last_read_seq: string | null; unread: number }>(
+  const r = await db.query<ConvRow & { last_read_seq: string | null; unread: number; lm_body: string | null; lm_sender: string | null; lm_sender_id: string | null }>(
     `${CONV_SELECT.replace('select c.id', `select coalesce(s.last_read_seq, 0) as last_read_seq,
             (select count(*)::int from app.messages m
               where m.conversation_id = c.id and m.seq > coalesce(s.last_read_seq, 0)
                 and m.deleted_at is null and m.kind = 'user' and m.sender_id is distinct from $1) as unread,
+            lm.body as lm_body, lm.display_name as lm_sender, lm.sender_id as lm_sender_id,
             c.id`)}
        left join app.conversation_states s on s.conversation_id = c.id and s.user_id = $1
+       left join lateral (
+         select m.body, m.sender_id, u.display_name from app.messages m join app.users u on u.id = m.sender_id
+          where m.conversation_id = c.id and m.kind = 'user' and m.deleted_at is null order by m.seq desc limit 1
+       ) lm on true
       where ${where}
       order by c.last_message_at desc nulls last, coalesce(g.name_norm, e.title_norm, t.title_norm)`,
     [userId, ...params],
@@ -132,6 +137,9 @@ async function summaries(db: Queryable, userId: string, where: string, params: u
     lastReadSeq: Number(c.last_read_seq ?? 0),
     unreadCount: c.unread,
     readOnly: c.read_only,
+    lastMessage: c.lm_sender_id
+      ? { senderName: c.lm_sender ?? '', own: c.lm_sender_id === userId, preview: (c.lm_body ?? '').replace(/\s+/g, ' ').trim().slice(0, 100) || 'Tệp đính kèm' }
+      : null,
   }));
 }
 

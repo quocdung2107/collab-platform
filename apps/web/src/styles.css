@@ -211,11 +211,12 @@ fieldset { border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .bubble .sender { font-size: 12px; font-weight: 600; color: var(--accent); }
 .bubble .body { white-space: pre-wrap; font-size: 16px; line-height: 1.4; }
 .bubble .deleted { opacity: 0.7; font-size: 14px; }
-.bubble .stamp { font-size: 11px; opacity: 0.65; justify-self: end; font-variant-numeric: tabular-nums; }
+.bubble .stamp { font-size: 11px; opacity: 0.85; justify-self: end; font-variant-numeric: tabular-nums; }
 .bubble .quote { font-size: 13px; opacity: 0.85; border-left: 3px solid currentColor; padding-left: 8px; margin-bottom: 2px; }
 .msg .retry { font-size: 13px; margin-top: 2px; }
 .msg.system { align-self: center; justify-items: center; max-width: 92%; margin: 10px 0; color: var(--muted); font-size: 13px; text-align: center; }
-.msg.system .body { background: var(--surface-2); border-radius: 12px; padding: 4px 10px; }
+.msg.system .body { background: var(--surface-2); border-radius: 12px; padding: 3px 10px; font-size: 12px; }
+.msg.system + .msg.system { margin-top: -6px; }
 .cards { display: grid; gap: 6px; margin-top: 6px; width: 100%; }
 .obj-card { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); color: var(--fg); min-width: 220px; max-width: 320px; }
 .obj-card.muted { opacity: 0.6; }
@@ -544,3 +545,6 @@ h2 .pchip { margin-left: 8px; vertical-align: middle; }
 @media (max-width: 719px) {
   .board-bar .button[aria-label='Bỏ chọn'] { display: none; }
 }
+
+.preview { color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.preview.unread { color: var(--fg); font-weight: 600; }
