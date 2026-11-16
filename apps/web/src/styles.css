@@ -548,3 +548,16 @@ h2 .pchip { margin-left: 8px; vertical-align: middle; }
 
 .preview { color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .preview.unread { color: var(--fg); font-weight: 600; }
+
+.month-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.month-head .icon-button:first-child svg { transform: rotate(180deg); }
+.month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+.month-wd { font-size: 12px; color: var(--muted); padding: 4px 0; }
+.month-day { display: grid; justify-items: center; align-content: center; gap: 2px; min-height: var(--tap); padding: 2px 0; border-radius: var(--radius-sm); background: none; border: 0; color: var(--fg); font: inherit; font-variant-numeric: tabular-nums; }
+.month-day.out { color: var(--muted); opacity: 0.55; }
+.month-day.today span { font-weight: 700; color: var(--accent); }
+.month-day.on { background: var(--accent-soft); }
+.month-day .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.month-day .dot.short { background: var(--danger); }
+.month-day .dot.none { visibility: hidden; }
+.month-head { margin-bottom: 0; }
