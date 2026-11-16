@@ -15,6 +15,7 @@ import { api, type SeriesChange } from '../lib/api';
 import { timeLabel } from '../lib/datetime';
 import { WEEKDAYS, dm, type Ev } from '../lib/planning';
 import { useAction, useLoad } from '../lib/useLoad';
+import { confirmThen, dialogs } from '../ui/dialogs';
 import { Sheet } from '../ui/kit';
 
 /**
@@ -248,6 +249,39 @@ export function SeriesSheet({ series, periods, onDone, onClose }: { series: Even
   const [time, setTime] = useState(series.localTime);
   const [duration, setDuration] = useState(series.definition.durationMin);
   const [location, setLocation] = useState(series.location ?? '');
+  /** Ngừng nhịp (giữ buổi) hoặc xoá nhịp cùng mọi buổi đã tạo, kể cả đã qua (AD-33) — luôn qua hộp xác nhận. */
+  const removeSeries = async () => {
+    const r = await api.seriesRemoval(series.id).catch(() => null);
+    const parts = r
+      ? [
+          r.drafts && `${r.drafts} bản nháp`,
+          r.upcomingPublished && `${r.upcomingPublished} buổi sắp tới đã gửi (${r.peopleToNotify} người sẽ được báo huỷ)`,
+          r.past && `${r.past} buổi đã qua hoặc đã huỷ`,
+        ].filter(Boolean)
+      : [];
+    const op = await dialogs.choose<'keep' | 'all'>({
+      title: `Nhịp "${series.name}"`,
+      message: r ? (r.total ? `Nhịp đã tạo ${r.total} buổi: ${parts.join(', ')}.` : 'Nhịp chưa tạo buổi nào.') : undefined,
+      options: [
+        { label: 'Ngừng nhịp, giữ các buổi đã tạo', detail: 'Không dự kiến thêm buổi mới', value: 'keep' },
+        ...(r && r.total > 0
+          ? [{ label: `Xoá nhịp và ${r.total} buổi đã tạo`, detail: r.blocked ? `Có ${r.blocked} buổi bạn không có quyền xoá` : 'Dùng khi tạo trùng; buổi đã qua cũng ẩn khỏi lịch', value: 'all' as const, danger: true }]
+          : []),
+      ],
+    });
+    if (!op) return;
+    const ok = await dialogs.confirm(
+      op === 'keep'
+        ? { title: 'Ngừng nhịp này?', message: 'Các buổi đã tạo giữ nguyên; không có buổi dự kiến mới.', confirmLabel: 'Ngừng nhịp', danger: true }
+        : {
+            title: `Xoá nhịp và ${r!.total} buổi?`,
+            message: `${r!.upcomingPublished ? `${r!.peopleToNotify} người được xếp ở buổi sắp tới sẽ nhận thông báo huỷ. ` : ''}Mọi buổi của nhịp ẩn khỏi lịch; lịch sử vẫn giữ. Không hoàn tác được.`,
+            confirmLabel: 'Xoá tất cả',
+            danger: true,
+          },
+    );
+    if (ok) void act.run(() => api.archiveSeries(series.id, op), (x) => onDone(op === 'keep' ? 'Đã ngừng nhịp' : `Đã xoá nhịp và ${x.removedEvents} buổi`));
+  };
   const [untilOn, setUntilOn] = useState(series.untilOn ?? '');
   const [impact, setImpact] = useState<SeriesImpactDto | null>(null);
   const change: SeriesChange = {
@@ -331,7 +365,15 @@ export function SeriesSheet({ series, periods, onDone, onClose }: { series: Even
               {cap(selectorLabel(v.selector, periods))}: {variantText(v.action)}
             </span>
             {series.canManage && (
-              <button className="button small" disabled={act.busy} onClick={() => act.run(() => api.removeVariant(v.id), () => onDone('Đã xoá ngoại lệ'))}>
+              <button
+                className="button small"
+                disabled={act.busy}
+                onClick={() =>
+                  confirmThen({ title: 'Xoá ngoại lệ này?', message: `${cap(selectorLabel(v.selector, periods))}: ${variantText(v.action)}. Các buổi đó sẽ trở về theo nhịp.`, confirmLabel: 'Xoá', danger: true }, () =>
+                    act.run(() => api.removeVariant(v.id), () => onDone('Đã xoá ngoại lệ')),
+                  )
+                }
+              >
                 Xoá
               </button>
             )}
@@ -340,8 +382,8 @@ export function SeriesSheet({ series, periods, onDone, onClose }: { series: Even
       </ul>
       {series.canManage && periods.some((p) => p.kind === 'period') && <PeriodVariant series={series} periods={periods} onDone={onDone} />}
       {series.canManage && (
-        <button className="button danger" disabled={act.busy} onClick={() => act.run(() => api.archiveSeries(series.id), () => onDone('Đã ngừng nhịp'))}>
-          Ngừng nhịp (giữ các buổi đã tạo)
+        <button className="button danger" disabled={act.busy} onClick={() => void removeSeries()}>
+          Ngừng hoặc xoá nhịp…
         </button>
       )}
     </Sheet>
@@ -441,7 +483,16 @@ export function PeriodSheet({ orgId, period, defaultStart, onDone, onClose }: { 
           {period ? 'Lưu' : 'Thêm'}
         </button>
         {period && (
-          <button type="button" className="button danger" disabled={act.busy} onClick={() => act.run(() => api.archivePeriod(period.id), () => onDone('Đã xoá giai đoạn'))}>
+          <button
+            type="button"
+            className="button danger"
+            disabled={act.busy}
+            onClick={() =>
+              confirmThen({ title: `Xoá "${period.name}"?`, message: 'Các buổi đã tạo giữ nguyên; ngoại lệ gắn với giai đoạn này thôi áp dụng.', confirmLabel: 'Xoá', danger: true }, () =>
+                act.run(() => api.archivePeriod(period.id), () => onDone('Đã xoá giai đoạn')),
+              )
+            }
+          >
             Xoá giai đoạn
           </button>
         )}

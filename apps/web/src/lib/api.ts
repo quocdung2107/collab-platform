@@ -37,6 +37,7 @@ import type {
   PlanDto,
   PlanPeriodDto,
   SeriesImpactDto,
+  SeriesRemovalDto,
   SeriesRule,
   SeriesVariantDto,
   VariantAction,
@@ -162,7 +163,9 @@ export const api = {
   taskFlags: (id: string, body: { blocked?: boolean; needsHelp?: boolean }) => request<TaskDto>(`/v1/tasks/${id}/flags`, json('POST', body)),
   taskCollaborators: (id: string, body: { add?: string[]; remove?: string[] }) => request<TaskDto | null>(`/v1/tasks/${id}/collaborators`, json('POST', body)),
   openTaskConversation: (id: string) => request<{ conversationId: string }>(`/v1/tasks/${id}/conversation`, json('POST', {})),
-  deleteDraft: (eventId: string, expectedVersion: number) => request(`/v1/events/${eventId}`, json('DELETE', { expectedVersion })),
+  /** Xoá buổi ở mọi trạng thái (AD-33): nháp lẻ xoá hẳn; còn lại ẩn khỏi lịch, buổi sắp tới đã công bố được huỷ và báo người được xếp. */
+  removeEvent: (eventId: string, body: { expectedVersion: number; reason?: string }) =>
+    request<{ id: string; mode: 'hard' | 'soft'; notifiedCount: number }>(`/v1/events/${eventId}`, json('DELETE', body)),
   publishEvent: (eventId: string, expectedVersion: number) =>
     request<{ event: EventDto; requestedCount: number }>(`/v1/events/${eventId}/publish`, json('POST', { expectedVersion })),
   changeOwners: (eventId: string, body: { expectedVersion: number; add?: string[]; remove?: string[] }) =>
@@ -200,7 +203,10 @@ export const api = {
   updateSeries: (seriesId: string, body: SeriesChange & { expectedVersion: number }) =>
     request<{ series: EventSeriesDto; applied: number }>(`/v1/series/${seriesId}`, json('PATCH', body)),
   previewSeries: (seriesId: string, body: SeriesChange) => request<SeriesImpactDto>(`/v1/series/${seriesId}/preview`, json('POST', body)),
-  archiveSeries: (seriesId: string) => request(`/v1/series/${seriesId}/archive`, json('POST')),
+  seriesRemoval: (seriesId: string) => request<SeriesRemovalDto>(`/v1/series/${seriesId}/removal`),
+  /** events = 'all': xoá luôn mọi buổi đã tạo của nhịp (kể cả đã qua) — dùng khi tạo trùng. */
+  archiveSeries: (seriesId: string, events: 'keep' | 'all' = 'keep') =>
+    request<{ removedEvents: number; notifiedCount: number }>(`/v1/series/${seriesId}/archive`, json('POST', { events })),
   addVariant: (seriesId: string, body: { selector: VariantSelector; action: VariantAction }) =>
     request<SeriesVariantDto>(`/v1/series/${seriesId}/variants`, json('POST', body, true)),
   removeVariant: (variantId: string) => request(`/v1/variants/${variantId}`, json('DELETE')),

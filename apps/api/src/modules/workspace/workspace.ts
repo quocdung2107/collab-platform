@@ -54,7 +54,7 @@ export async function getWorkspace(db: Queryable, userId: string): Promise<Works
     `select a.id, a.status, e.org_id, o.name as org_name, e.id as event_id, e.title, e.starts_at, e.location,
             p.name as position_name, g.name as group_name, e.starts_at + make_interval(mins => p.report_offset_min) as report_at
        from app.assignments a
-       join app.events e on e.id = a.event_id and e.status = 'published'
+       join app.events e on e.id = a.event_id and e.status = 'published' and e.deleted_at is null
        join app.positions p on p.id = a.position_id and p.removed_at is null
        left join app.groups g on g.id = p.group_id
        join app.organizations o on o.id = e.org_id and o.deleted_at is null
@@ -84,7 +84,7 @@ export async function getWorkspace(db: Queryable, userId: string): Promise<Works
     `select e.id as event_id, e.title, e.starts_at, o.name as org_name, p.id as position_id, p.name as position_name, g.name as group_name, p.slots,
             (select count(*)::int from app.assignments x where x.position_id = p.id and x.status in ('draft', 'requested', 'accepted', 'reconfirm')) as filled
        from app.positions p
-       join app.events e on e.id = p.event_id and e.status <> 'cancelled' and e.starts_at > now()
+       join app.events e on e.id = p.event_id and e.status <> 'cancelled' and e.deleted_at is null and e.starts_at > now()
        join app.organizations o on o.id = e.org_id and o.deleted_at is null
        join app.memberships m on m.org_id = e.org_id and m.user_id = $1 and m.status = 'active'
        left join app.groups g on g.id = p.group_id
@@ -109,7 +109,7 @@ export async function getWorkspace(db: Queryable, userId: string): Promise<Works
   }));
   const declinedTasks = taskSource ? await taskSource.declinedByOthers(db, userId) : [];
   const coordinates = await db.query(
-    `select 1 from app.event_owners eo join app.events e on e.id = eo.event_id where eo.user_id = $1 and e.status <> 'cancelled'
+    `select 1 from app.event_owners eo join app.events e on e.id = eo.event_id where eo.user_id = $1 and e.status <> 'cancelled' and e.deleted_at is null
      union all select 1 from app.group_members where user_id = $1 and role = 'leader' limit 1`,
     [userId],
   );

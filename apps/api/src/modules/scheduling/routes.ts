@@ -4,8 +4,9 @@ import { runCommand } from '../../http/command.js';
 import { idParam, parse } from '../../http/validate.js';
 import { cancelAssignment, replaceAssignment, respondAssignment } from './assignments.js';
 import { cancelEvent, relocateEvent, rescheduleEvent } from './lifecycle.js';
-import { changeOwners, createEvent, deleteDraft, getEvent, listEvents, publishEvent, updateEvent } from './events.js';
+import { changeOwners, createEvent, getEvent, listEvents, publishEvent, updateEvent } from './events.js';
 import { cancelDraftAssignment, createAssignment, createPosition, removePosition, updatePosition } from './positions.js';
+import { removeEvent } from './removal.js';
 import { archiveTemplate, createTemplate, listTemplates, templateFromEvent } from './templates.js';
 
 const title = z.string().trim().min(1, 'Bắt buộc').max(200);
@@ -43,6 +44,7 @@ const rescheduleBody = z.object({ expectedVersion: z.number().int().positive(), 
 const relocateBody = z.object({ expectedVersion: z.number().int().positive(), location: z.string().trim().max(300).nullable() });
 const cancelBody = z.object({ expectedVersion: z.number().int().positive(), reason: z.string().trim().max(500).optional() });
 const versionBody = z.object({ expectedVersion: version });
+const removeBody = z.object({ expectedVersion: version, reason: z.string().trim().max(500).optional() });
 const ownersBody = z.object({ expectedVersion: version, add: uuids.default([]), remove: uuids.default([]) });
 const positionFields = {
   name: z.string().trim().min(1, 'Bắt buộc').max(120),
@@ -99,7 +101,7 @@ export async function schedulingRoutes(app: FastifyInstance) {
   );
   app.delete<{ Params: P }>('/v1/events/:eventId', (req, reply) =>
     runCommand(deps, req, reply, async (ctx) => ({
-      body: await deleteDraft(ctx, idParam(req.params.eventId), parse(versionBody, req.body).expectedVersion),
+      body: await removeEvent(ctx, idParam(req.params.eventId), parse(removeBody, req.body)),
     })),
   );
   app.post<{ Params: P }>('/v1/events/:eventId/publish', (req, reply) =>

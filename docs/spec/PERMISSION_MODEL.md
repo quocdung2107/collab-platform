@@ -100,7 +100,7 @@ Tin `system` không ai sửa hay xoá được.
 | Thêm/gỡ `event_owner`, đổi `event_groups`, đổi `visibility` | ✔ | ✔ | ✖ | ✖ |
 | Thêm/sửa/gỡ Position | ✔ | ✔ | chỉ Position có `group_id` là nhóm của họ | ✖ |
 | Theo dõi / tắt tiếng cho mình | ✔ | ✔ | ✔ | nếu `view(event)` |
-| Xoá bản nháp | ✔ | ✔ | ✖ | ✖ |
+| Xoá buổi (bản nháp xoá hẳn; còn lại ẩn mềm, AD-33) | ✔ | ✔ | ✖ | ✖ |
 
 Người tạo Event tự động là `event_owner`. Event luôn có ít nhất một `event_owner`.
 

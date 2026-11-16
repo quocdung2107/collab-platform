@@ -396,7 +396,7 @@ Không có bảng `decisions`, `documents`, `workflows`, `context_graph` trong t
 | Membership | `status = removed`; dòng giữ lại | Vô thời hạn |
 | Group | `archived_at`; hội thoại chuyển chỉ-đọc | Vô thời hạn |
 | Event `draft` | Xoá cứng được (chưa ai được báo); xoá theo Position, Assignment `draft`, và ActivityEvent của riêng nó | — |
-| Event đã publish | Không xoá; chỉ `cancelled` | Vô thời hạn |
+| Event đã publish, đã qua, hoặc thuộc nhịp | `cancelled` hoặc ẩn mềm `deleted_at`, `deleted_by` (AD-33): không ai xem được, dòng giữ cho lịch sử và tham chiếu | Vô thời hạn |
 | Position | `removed_at` | Vô thời hạn |
 | Assignment | Không xoá; `cancelled` | Vô thời hạn |
 | Task | Không xoá; `cancelled` | Vô thời hạn |

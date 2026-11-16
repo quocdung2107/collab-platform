@@ -499,3 +499,48 @@ h2 .pchip { margin-left: 8px; vertical-align: middle; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* Bảng phân công (IN-58): dòng gọn không nút; chọn dòng rồi chỉnh ở thanh riêng. */
+.board { gap: 10px; }
+.board-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.board-sum { font-size: 13px; color: var(--muted); }
+.board-sum strong { color: var(--fg); }
+.board-table { display: grid; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.board-group + .board-group { border-top: 1px solid var(--line); }
+.board-row { display: flex; align-items: center; gap: 10px; min-height: var(--tap); padding: 6px 12px; outline: none; }
+.board-row.pickable { cursor: pointer; }
+.board-row.pickable:hover { background: var(--surface-2); }
+.board-row:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.board-row.on, .board-row.on:hover { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.board-pos { background: var(--surface-2); min-height: 48px; }
+.board-person, .board-empty { padding-left: 16px; }
+.board-person + .board-person, .board-person + .board-empty, .board-empty + .board-empty { border-top: 1px solid var(--line); }
+.board-main { flex: 1; min-width: 0; display: grid; gap: 1px; line-height: 1.3; }
+.board-main > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-main .hint { font-size: 13px; }
+.board-row .avatar.sm { width: 28px; height: 28px; margin: 0; font-size: 11px; }
+.board-row .avatar.empty { background: none; border: 1.5px dashed var(--line); }
+.board-person.muted .board-main > span:first-child { color: var(--muted); }
+.count { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+.count.short { color: var(--danger); background: var(--danger-soft); border-color: transparent; }
+.board-bar {
+  position: sticky; z-index: 5; bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 8px);
+  display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-radius: var(--radius-sm);
+  background: var(--bar); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--line); box-shadow: 0 6px 18px -10px rgb(10 20 40 / 0.35);
+}
+.board-bar.active { border-color: var(--accent); }
+.board-sel { flex: 1; min-width: 0; font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-bar.active .board-sel { color: var(--fg); font-weight: 600; }
+.board-bar .button { gap: 4px; }
+/* Máy tính: thanh chỉnh sửa nằm trên đầu bảng, ngay dưới tiêu đề. */
+@media (min-width: 720px) {
+  .board-bar { order: 1; position: static; box-shadow: none; }
+  .board-head { order: 0; }
+  .board-table, .board > .hint { order: 2; }
+  .board > .error { order: 3; }
+  .board-bar .button[aria-label='Bỏ chọn'] { display: inline-flex; }
+}
+@media (max-width: 719px) {
+  .board-bar .button[aria-label='Bỏ chọn'] { display: none; }
+}

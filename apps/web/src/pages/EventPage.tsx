@@ -14,6 +14,7 @@ import { assignmentStatusLabel, eventStatusLabel } from './EventLabels';
 import { NotAvailable } from './OrgPage';
 import { RespondButtons } from './Respond';
 import { TaskList } from './Tasks';
+import { AssignmentBoard } from './AssignmentBoard';
 import { Related } from './Related';
 import { History } from './History';
 import { Files } from './Files';
@@ -45,6 +46,42 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
       ? e.positions.flatMap((p) => p.assignments.filter((a) => a.userId === meId && ['requested', 'reconfirm', 'accepted'].includes(a.status)).map((a) => ({ p, a })))
       : [];
 
+  // Xoá buổi ở mọi trạng thái (AD-33), luôn hỏi lại; lời nhắc nói đúng hậu quả theo trạng thái.
+  const upcoming = e.status === 'published' && new Date(e.endsAt).getTime() > Date.now();
+  const notify = new Set(e.positions.flatMap((p) => p.assignments.filter((a) => ['requested', 'accepted', 'reconfirm'].includes(a.status)).map((a) => a.userId))).size;
+  const deleteDetail = isDraft
+    ? e.seriesId
+      ? 'Ngày này của nhịp sẽ thành "đã xoá", không tạo lại'
+      : 'Chưa ai được báo'
+    : upcoming
+      ? `Huỷ trước, ${notify} người được báo, rồi ẩn khỏi lịch`
+      : 'Ẩn khỏi lịch, không báo ai';
+  const removeEvent = async () => {
+    const done = (r: { notifiedCount: number }) => (setNotice(null), go({ name: 'calendar' }), r);
+    if (upcoming) {
+      const reason = await dialogs.prompt({
+        title: 'Xoá buổi sắp diễn ra?',
+        message: `Buổi sẽ được huỷ trước: ${notify} người đang được xếp nhận thông báo huỷ. Sau đó buổi ẩn khỏi lịch và mọi danh sách; lịch sử vẫn giữ. Không hoàn tác được.`,
+        placeholder: 'Lý do gửi kèm thông báo (không bắt buộc)',
+        confirmLabel: 'Huỷ và xoá',
+        danger: true,
+      });
+      if (reason !== null) void act.run(() => api.removeEvent(eventId, { expectedVersion: e.version, reason: reason.trim() || undefined }), done);
+      return;
+    }
+    const ok = await dialogs.confirm({
+      title: isDraft ? 'Xoá bản nháp này?' : 'Xoá buổi này?',
+      message: isDraft
+        ? e.seriesId
+          ? 'Chưa ai được báo. Ngày này của nhịp sẽ thành "đã xoá" và không được tạo lại. Không hoàn tác được.'
+          : 'Chưa ai được báo về buổi này. Không hoàn tác được.'
+        : `Buổi ${cancelled ? 'đã huỷ' : 'đã qua'} sẽ ẩn khỏi lịch và mọi danh sách; không ai nhận thông báo. Lịch sử hoạt động vẫn giữ. Không hoàn tác được.`,
+      confirmLabel: 'Xoá',
+      danger: true,
+    });
+    if (ok) void act.run(() => api.removeEvent(eventId, { expectedVersion: e.version }), done);
+  };
+
   type Op = 'edit' | 'copy' | 'template' | 'delete';
   const more = async () => {
     const op = await dialogs.choose<Op>({
@@ -53,7 +90,7 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
         ...(!cancelled ? [{ label: editing ? 'Đóng phần sửa' : 'Sửa thông tin, đổi giờ, huỷ buổi', value: 'edit' as const }] : []),
         { label: 'Sao chép thành buổi mới', value: 'copy' },
         { label: 'Lưu làm mẫu', value: 'template' },
-        ...(isDraft ? [{ label: 'Xoá bản nháp', value: 'delete' as const, danger: true }] : []),
+        { label: isDraft ? 'Xoá bản nháp' : 'Xoá buổi', detail: deleteDetail, value: 'delete' as const, danger: true },
       ],
     });
     if (op === 'edit') setEditing((x) => !x);
@@ -61,10 +98,7 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
     else if (op === 'template') {
       const name = await dialogs.prompt({ title: 'Lưu làm mẫu', message: 'Mẫu giữ các vị trí và nhóm để dựng buổi sau nhanh hơn.', initial: e.title, required: true, confirmLabel: 'Lưu mẫu', maxLength: 120 });
       if (name?.trim()) void act.run(() => api.templateFromEvent(eventId, name.trim()), () => setNotice(`Đã lưu mẫu "${name.trim()}".`));
-    } else if (op === 'delete')
-      confirmThen({ title: 'Xoá bản nháp này?', message: 'Chưa ai được báo về buổi này.', confirmLabel: 'Xoá', danger: true }, () =>
-        act.run(() => api.deleteDraft(eventId, e.version), () => go({ name: 'calendar' })),
-      );
+    } else if (op === 'delete') void removeEvent();
   };
 
   return (
@@ -150,14 +184,7 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
       {e.conversationId && <ChatLink conversationId={e.conversationId} label="Thảo luận về buổi này" />}
       {isDraft && <p className="hint center">Thảo luận mở khi buổi được công bố.</p>}
 
-      <section className="card">
-        <h2>Phân công</h2>
-        {e.positions.length === 0 && <p className="hint">Chưa có vị trí.</p>}
-        {e.positions.map((p) => (
-          <Position key={p.id} p={p} e={e} meId={meId} members={members.data ?? []} onChanged={ev.reload} onWarn={setNotice} />
-        ))}
-        {e.canAddPositions && !cancelled && <AddPosition e={e} onAdded={ev.reload} />}
-      </section>
+      <AssignmentBoard e={e} meId={meId} members={members.data ?? []} onChanged={ev.reload} onNotice={setNotice} />
 
       <TaskList
         load={() => api.eventTasks(eventId)}
@@ -330,192 +357,6 @@ function Owners({ e, members, onChanged }: { e: EventDto; members: MemberDto[]; 
       </form>
       {act.error && <p className="error">{act.error}</p>}
     </div>
-  );
-}
-
-function Position({
-  p,
-  e,
-  meId,
-  members,
-  onChanged,
-  onWarn,
-}: {
-  p: PositionDto;
-  e: EventDto;
-  meId: string;
-  members: MemberDto[];
-  onChanged: () => void;
-  onWarn: (s: string | null) => void;
-}) {
-  const act = useAction();
-  const [pick, setPick] = useState('');
-  const editable = p.canManage && e.status !== 'cancelled';
-  const taken = new Set(p.assignments.filter((a) => a.status !== 'cancelled').map((a) => a.userId));
-  return (
-    <div className="position">
-      <div className="row spread">
-        <strong>{p.name}</strong>
-        <span className={p.filled < p.slots ? 'tag warn' : 'tag'}>
-          {p.filled}/{p.slots}
-        </span>
-      </div>
-      <p className="hint">
-        {p.groupName ?? 'Không thuộc nhóm'}
-        {p.reportOffsetMin !== 0 && ` · có mặt ${timeLabel(addMinutes(e.startsAt, p.reportOffsetMin))}`}
-      </p>
-      <ul className="list">
-        {p.assignments.map((a) => (
-          <li key={a.id}>
-            <span>
-              {a.displayName}
-              {a.userId === meId && ' (bạn)'}
-              {a.respondedBy && a.respondedBy !== a.userId && a.status !== 'requested' && <span className="hint"> · người điều phối trả lời thay</span>}
-              {a.declineReason && <span className="hint"> · “{a.declineReason}”</span>}
-            </span>
-            <span className="row">
-              <span className={a.status === 'accepted' ? 'tag ok' : a.status === 'declined' || a.status === 'reconfirm' ? 'tag warn' : a.status === 'requested' ? 'tag info' : 'tag'}>
-                {assignmentStatusLabel[a.status]}
-              </span>
-              {editable && e.status === 'published' && a.userId !== meId && (a.status === 'requested' || a.status === 'reconfirm') && (
-                <RespondButtons assignmentId={a.id} status={a.status} onDone={onChanged} onBehalf />
-              )}
-              {editable && e.status === 'published' && ['requested', 'accepted', 'reconfirm', 'declined'].includes(a.status) && (
-                <>
-                  <button
-                    className="button small"
-                    disabled={act.busy}
-                    onClick={async () => {
-                      const options = members.filter((m) => !taken.has(m.userId));
-                      if (options.length === 0) return onWarn('Không còn ai trong tổ chức để thay.');
-                      const pick = await dialogs.choose({ title: `Thay ${a.displayName} ở ${p.name}`, options: options.map((m) => ({ label: m.displayName, value: m.userId })) });
-                      if (pick) void act.run(() => api.replaceAssignment(a.id, pick, a.status), onChanged);
-                    }}
-                  >
-                    Thay
-                  </button>
-                  {a.status !== 'declined' && (
-                    <button
-                      className="button small danger"
-                      disabled={act.busy}
-                      onClick={() =>
-                        confirmThen({ title: `Gỡ ${a.displayName} khỏi ${p.name}?`, message: 'Người này sẽ được báo.', confirmLabel: 'Gỡ', danger: true }, () =>
-                          act.run(() => api.cancelAssignment(a.id, a.status), onChanged),
-                        )
-                      }
-                    >
-                      Gỡ
-                    </button>
-                  )}
-                </>
-              )}
-              {editable && a.status === 'draft' && (
-                <button className="button small danger" disabled={act.busy} onClick={() => void act.run(() => api.cancelDraftAssignment(a.id), onChanged)}>
-                  Bỏ
-                </button>
-              )}
-            </span>
-          </li>
-        ))}
-      </ul>
-      {editable && p.filled < p.slots && (
-        <form
-          className="row"
-          onSubmit={(x) => {
-            x.preventDefault();
-            if (!pick) return;
-            void act.run(
-              () => api.assign(p.id, pick),
-              (r) => {
-                setPick('');
-                const w = r.warnings[0];
-                onWarn(w ? `Lưu ý: ${r.assignment.displayName} đã được xếp vào "${w.title}" trùng giờ.` : null);
-                onChanged();
-              },
-            );
-          }}
-        >
-          <select value={pick} onChange={(x) => setPick(x.target.value)}>
-            <option value="">Xếp người…</option>
-            {members.filter((m) => !taken.has(m.userId)).map((m) => (
-              <option key={m.userId} value={m.userId}>
-                {m.displayName}
-              </option>
-            ))}
-          </select>
-          <button className="button small" disabled={act.busy || !pick}>
-            Xếp
-          </button>
-        </form>
-      )}
-      {editable && (
-        <div className="row">
-          <button
-            className="button small"
-            disabled={act.busy}
-            onClick={async () => {
-              const v = await dialogs.prompt({ title: `Số người cần cho ${p.name}`, initial: String(p.slots), inputType: 'number', required: true, confirmLabel: 'Lưu' });
-              const n = Number(v);
-              if (Number.isInteger(n) && n > 0 && n !== p.slots) void act.run(() => api.updatePosition(p.id, { expectedVersion: p.version, slots: n }), onChanged);
-            }}
-          >
-            Đổi số người
-          </button>
-          <button
-            className="button small danger"
-            disabled={act.busy}
-            onClick={() =>
-              confirmThen({ title: `Bỏ vị trí ${p.name}?`, message: e.status === 'published' ? 'Người đã xếp sẽ được báo huỷ.' : undefined, confirmLabel: 'Bỏ vị trí', danger: true }, () =>
-                act.run(() => api.removePosition(p.id), onChanged),
-              )
-            }
-          >
-            Bỏ vị trí
-          </button>
-        </div>
-      )}
-      {act.error && <p className="error">{act.error}</p>}
-    </div>
-  );
-}
-
-function AddPosition({ e, onAdded }: { e: EventDto; onAdded: () => void }) {
-  const act = useAction();
-  const [name, setName] = useState('');
-  const [groupId, setGroupId] = useState(e.groups[0]?.id ?? '');
-  const [slots, setSlots] = useState(1);
-  const [offset, setOffset] = useState(0);
-  return (
-    <form
-      className="grid"
-      onSubmit={(x) => {
-        x.preventDefault();
-        void act.run(() => api.createPosition(e.id, { name, groupId: groupId || null, slots, reportOffsetMin: -offset }), () => (setName(''), onAdded()));
-      }}
-    >
-      <h2>Thêm vị trí</h2>
-      <input value={name} onChange={(x) => setName(x.target.value)} placeholder="Tên vị trí (vd. Âm thanh)" required maxLength={120} />
-      <div className="row">
-        <select value={groupId} onChange={(x) => setGroupId(x.target.value)}>
-          {e.canEdit && <option value="">Không thuộc nhóm</option>}
-          {e.groups.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-            </option>
-          ))}
-        </select>
-        <label className="row hint">
-          Số người <input type="number" min={1} max={100} value={slots} onChange={(x) => setSlots(Number(x.target.value))} style={{ width: 72 }} />
-        </label>
-        <label className="row hint">
-          Có mặt trước (phút) <input type="number" min={0} step={5} value={offset} onChange={(x) => setOffset(Number(x.target.value))} style={{ width: 72 }} />
-        </label>
-      </div>
-      {act.error && <p className="error">{act.error}</p>}
-      <button className="button" disabled={act.busy || !name}>
-        Thêm vị trí
-      </button>
-    </form>
   );
 }
 

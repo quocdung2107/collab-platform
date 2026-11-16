@@ -95,7 +95,8 @@ const W_SELECT = `
     join app.organizations o on o.id = t.org_id and o.deleted_at is null
     join app.memberships m on m.org_id = t.org_id and m.user_id = $1 and m.status = 'active'
     left join app.events e on e.id = t.event_id
-    left join app.groups g on g.id = t.group_id`;
+    left join app.groups g on g.id = t.group_id
+   where (t.event_id is null or e.deleted_at is null)`;
 const toW = (r: WRow): WorkspaceTaskDto => ({
   kind: 'task',
   id: r.id,
@@ -111,7 +112,7 @@ const toW = (r: WRow): WorkspaceTaskDto => ({
 
 registerTaskSource({
   async needsResponse(db: Queryable, userId: string) {
-    const r = await db.query<WRow>(`${W_SELECT} where t.owner_id = $1 and t.acceptance = 'pending' and t.status in ('open', 'in_progress') order by t.due_at nulls last`, [
+    const r = await db.query<WRow>(`${W_SELECT} and t.owner_id = $1 and t.acceptance = 'pending' and t.status in ('open', 'in_progress') order by t.due_at nulls last`, [
       userId,
     ]);
     return r.rows.map(toW);
@@ -119,7 +120,7 @@ registerTaskSource({
   // Việc của tôi: đã nhận hoặc không cần nhận; có hạn trong 14 ngày, quá hạn, hoặc không hạn (F12-T3).
   async upcoming(db: Queryable, userId: string, horizon: Date) {
     const r = await db.query<WRow>(
-      `${W_SELECT} where t.owner_id = $1 and t.acceptance in ('none', 'accepted') and t.status in ('open', 'in_progress')
+      `${W_SELECT} and t.owner_id = $1 and t.acceptance in ('none', 'accepted') and t.status in ('open', 'in_progress')
          and (t.due_at is null or t.due_at <= $2)`,
       [userId, horizon],
     );
@@ -132,7 +133,8 @@ registerTaskSource({
          join app.organizations o on o.id = t.org_id and o.deleted_at is null
          join app.memberships m on m.org_id = t.org_id and m.user_id = $1 and m.status = 'active'
          join app.users u on u.id = t.owner_id
-        where t.assigned_by = $1 and t.acceptance = 'declined' and t.status in ('open', 'in_progress')
+        where t.assigned_by = $1 and t.acceptance = 'declined'
+          and not exists (select 1 from app.events e where e.id = t.event_id and e.deleted_at is not null) and t.status in ('open', 'in_progress')
         order by t.updated_at desc limit 50`,
       [userId],
     );

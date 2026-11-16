@@ -17,6 +17,7 @@ import {
   removeVariant,
   seriesFromEvents,
   seriesImpact,
+  seriesRemoval,
   updatePeriod,
   updateSeries,
 } from './plan.js';
@@ -95,6 +96,7 @@ const changeFields = {
 };
 const seriesPatch = z.object({ expectedVersion: version, ...changeFields });
 const previewBody = z.object(changeFields);
+const archiveBody = z.object({ events: z.enum(['keep', 'all']).default('keep'), reason: z.string().trim().max(500).optional() });
 
 type P = { orgId?: string; periodId?: string; seriesId?: string; variantId?: string };
 
@@ -138,8 +140,9 @@ export async function planningRoutes(app: FastifyInstance) {
   app.post<{ Params: P }>('/v1/series/:seriesId/preview', (req) =>
     seriesImpact(app.db, req.currentUser().id, idParam(req.params.seriesId), parse(previewBody, req.body)),
   );
+  app.get<{ Params: P }>('/v1/series/:seriesId/removal', (req) => seriesRemoval(app.db, req.currentUser().id, idParam(req.params.seriesId)));
   app.post<{ Params: P }>('/v1/series/:seriesId/archive', (req, reply) =>
-    runCommand(deps, req, reply, async (ctx) => ({ body: await archiveSeries(ctx, idParam(req.params.seriesId)) })),
+    runCommand(deps, req, reply, async (ctx) => ({ body: await archiveSeries(ctx, idParam(req.params.seriesId), parse(archiveBody, req.body ?? {})) })),
   );
   app.post<{ Params: P }>('/v1/series/:seriesId/variants', (req, reply) =>
     runCommand(deps, req, reply, async (ctx) => ({ status: 201, body: await addVariant(ctx, idParam(req.params.seriesId), parse(variantBody, req.body)) })),

@@ -47,6 +47,8 @@ export type EventObject = {
   ownerIds: readonly string[];
   /** Người có Assignment đang hiệu lực (requested/accepted/reconfirm) — xem được Event visibility = groups. */
   activeAssigneeIds: readonly string[];
+  /** Đã xoá (ẩn mềm, AD-33): không ai xem được nữa, kể cả admin; dòng chỉ còn cho lịch sử. */
+  deleted?: boolean;
 };
 
 /** Tạo Event: chưa có id; cần nhóm dự kiến để kiểm tra leader (§4.4). */
@@ -202,6 +204,7 @@ const leadsAnyOf = (a: ActorContext, groupIds: readonly string[]) => groupIds.so
 
 /** view(event) — PERMISSION_MODEL §3. */
 export function viewsEvent(a: ActorContext, e: EventObject): boolean {
+  if (e.deleted) return false;
   if (isOrgAdmin(a) || isEventOwner(a, e)) return true;
   if (e.status === 'draft') return leadsAnyOf(a, e.groupIds);
   if (e.visibility === 'org') return true;
