@@ -139,6 +139,14 @@ describe.skipIf(!TEST_DB_URL)('F9: hội thoại nhóm', () => {
     expect((await LD.call('PATCH', `/v1/messages/${m.id}`, { body: 'hồi sinh' })).status).toBe(403);
   });
 
+  it('danh sách Chat có tin cuối của người dùng; tin đã xoá không lộ nội dung', async () => {
+    const a = (await send(M2, 'Tin cuối  để xem trước')).body;
+    const row = async () => (await M1.call('GET', `/v1/organizations/${orgId}/conversations`)).body.find((c: { id: string }) => c.id === convId);
+    expect((await row()).lastMessage).toEqual({ senderName: 'M2', own: false, preview: 'Tin cuối để xem trước' });
+    await M2.call('DELETE', `/v1/messages/${a.id}`);
+    expect(JSON.stringify(await row())).not.toContain('xem trước');
+  });
+
   it('đã đọc: số chưa đọc đúng, không lùi, không vượt last_seq', async () => {
     await send(M2, 'tin mới cho M1');
     const list = (await M1.call('GET', `/v1/organizations/${orgId}/conversations`)).body.find((c: { id: string }) => c.id === convId);

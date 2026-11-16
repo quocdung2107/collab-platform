@@ -35,6 +35,8 @@ export interface WorkspaceTaskDto {
 export interface ShortPositionDto {
   eventId: string;
   eventTitle: string;
+  /** Bản nháp chưa gửi cho ai: vẫn cần xếp người nhưng khác "cần thay gấp". */
+  eventStatus: 'draft' | 'published';
   startsAt: string;
   orgName: string;
   positionId: string;
@@ -63,4 +65,12 @@ export interface WorkspaceDto {
   coordinate: { shortPositions: ShortPositionDto[]; declinedTasks: DeclinedTaskDto[] } | null;
   /** Tổ chức đầu tiên của người dùng để trạng thái rỗng dẫn tới Lịch (F12-T5). */
   firstOrgId: string | null;
+}
+
+/** Ngày bận (AD-34): chỉ chủ sở hữu đọc được; không có lý do. */
+export interface UnavailabilityDto {
+  id: string;
+  orgId: string;
+  startsOn: string;
+  endsOn: string;
 }

@@ -23,7 +23,7 @@ Chỉ gồm chức năng `[MVP]`. Chức năng `[S]`/`[EXT]` không có tiêu ch
 | F13 | Lịch sử đối tượng |
 | F14 | Phân quyền và truy cập chéo |
 
-Ngoài MVP: tìm kiếm toàn văn, xem trước chi tiết khi dời lịch, nhắc việc và leo thang, tóm tắt, ngày bận, đề xuất người thay, "đã chốt", dòng chương trình, tích hợp Koinonia, DM, AI.
+Ngoài MVP (ngày bận tối thiểu đã làm ở AD-34): tìm kiếm toàn văn, xem trước chi tiết khi dời lịch, nhắc việc và leo thang, tóm tắt, đề xuất người thay, "đã chốt", dòng chương trình, tích hợp Koinonia, DM, AI.
 
 Ký hiệu nhân vật: **AD** org admin · **LD** trưởng nhóm Âm thanh · **OW** người phụ trách Event · **M1, M2, M3** thành viên · **X** thành viên tổ chức không thuộc nhóm nào.
 

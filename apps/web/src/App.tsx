@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { useEffect, useMemo, useState } from 'react';
 import { api, errorText } from './lib/api';
 import { detectBrowser } from './lib/embeddedBrowser';
+import { useOnline } from './lib/useOnline';
 import { useRealtime } from './lib/realtime';
 import { setCurrentOrg, useCurrentOrg } from './lib/currentOrg';
 import { go, href, isTabRoot, pendingInvite, tabOf, useRoute, type Route } from './lib/route';
@@ -13,6 +14,7 @@ import { Planner } from './pages/Planner';
 import { Chats } from './pages/Chats';
 import { Groups } from './pages/Groups';
 import { ChatScreen } from './pages/ChatScreen';
+import { MemberPage } from './pages/MemberPage';
 import { Me } from './pages/Me';
 import { TaskPage } from './pages/Tasks';
 import { EventPage } from './pages/EventPage';
@@ -36,6 +38,7 @@ export function App() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [meTick, setMeTick] = useState(0);
+  const net = useOnline();
   const route = useRoute();
   const reloadMe = () => setMeTick((t) => t + 1);
   const meId = me?.user.id;
@@ -153,7 +156,12 @@ export function App() {
       ) : (
         <NavHeader route={route} title={screenTitle ?? { title: TITLE[route.name] }} actions={route.name === 'chat' ? null : actions} />
       )}
-      <main className={route.name === 'chat' ? 'content chat-content' : route.name === 'plan' ? 'content wide' : 'content'} key={href(route)}>
+      {!net.online && (
+        <div className="banner warn offline" role="status">
+          Đang ngoại tuyến. Màn hình có thể là dữ liệu cũ và thao tác sẽ chưa gửi được; app tự tải lại khi có mạng.
+        </div>
+      )}
+      <main className={route.name === 'chat' ? 'content chat-content' : route.name === 'plan' ? 'content wide' : 'content'} key={`${href(route)}#${net.backAt}`}>
         {needsOrg && !org && (
           <section className="card">
             <p className="hint">Bạn chưa thuộc tổ chức nào.</p>
@@ -172,6 +180,7 @@ export function App() {
         {route.name === 'inbox' && <Inbox meId={me.user.id} onCounts={counts.reload} />}
         {route.name === 'invite' && <InvitePage token={route.token} onJoined={reloadMe} />}
         {route.name === 'org' && <OrgPage key={route.id} orgId={route.id} meId={me.user.id} onMembershipChanged={reloadMe} />}
+        {route.name === 'member' && <MemberPage key={route.id} orgId={route.orgId} userId={route.id} meId={me.user.id} />}
         {route.name === 'group' && <GroupPage key={route.id} groupId={route.id} meId={me.user.id} />}
         {route.name === 'event' && <EventPage key={route.id} eventId={route.id} meId={me.user.id} />}
         {route.name === 'chat' && <ChatScreen key={route.id} conversationId={route.id} meId={me.user.id} />}
@@ -200,4 +209,5 @@ const TITLE: Record<Route['name'], string> = {
   task: 'Việc',
   chat: 'Trò chuyện',
   newevent: 'Tạo buổi',
+  member: 'Thành viên',
 };

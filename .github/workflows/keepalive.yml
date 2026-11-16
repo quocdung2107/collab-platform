@@ -1,0 +1,18 @@
+# Giữ API Render (gói miễn phí) không ngủ: Render tắt dịch vụ sau 15 phút không có yêu cầu, mà bộ gửi thông báo đẩy
+# chạy chung tiến trình đó (apps/api/src/server.ts). Gọi /healthz mỗi 5 phút để thông báo và bản tóm tắt sau giờ yên lặng đến đúng giờ.
+# Lưu ý: lịch của GitHub có thể trễ vài phút khi tải cao; một dịch vụ thức 24/7 dùng ~744 giờ/tháng, trong hạn mức 750 giờ miễn phí của Render.
+name: keepalive
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Gọi /healthz (chịu được lần khởi động nguội ~1 phút)
+        run: curl --fail --silent --show-error --max-time 100 --retry 2 --retry-delay 5 https://collab-api-jcwa.onrender.com/healthz

@@ -70,3 +70,10 @@ export interface GroupDetailDto extends GroupSummaryDto {
   orgId: string;
   members: GroupMemberDto[];
 }
+
+/** Hồ sơ thành viên (UX §4.7): vai trò, nhóm, "Sắp phục vụ" đã lọc theo quyền xem của người gọi. Không có lý do từ chối hay số liệu từ chối. */
+export interface MemberProfileDto {
+  member: MemberDto;
+  groups: Array<{ id: string; name: string; role: GroupRole }>;
+  upcoming: Array<{ eventId: string; eventTitle: string; startsAt: string; positionName: string; status: 'requested' | 'accepted' | 'reconfirm' }>;
+}

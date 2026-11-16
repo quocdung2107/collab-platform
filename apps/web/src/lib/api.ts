@@ -12,6 +12,8 @@ import type {
   MessagePageDto,
   ConversationSummaryDto,
   MemberDto,
+  MemberProfileDto,
+  UnavailabilityDto,
   OrganizationDto,
   OrgRole,
   CreatedAssignmentDto,
@@ -91,10 +93,17 @@ export const api = {
 
   createOrg: (name: string) => request<OrganizationDto>('/v1/organizations', json('POST', { name }, true)),
   org: (orgId: string) => request<OrganizationDto>(`/v1/organizations/${orgId}`),
+  updateOrg: (orgId: string, body: { expectedVersion: number; name?: string; timezone?: string; defaultEventVisibility?: 'org' | 'groups'; reconfirmThresholdMin?: number }) =>
+    request<OrganizationDto>(`/v1/organizations/${orgId}`, json('PATCH', body)),
   members: (orgId: string) => request<MemberDto[]>(`/v1/organizations/${orgId}/members`),
+  memberProfile: (orgId: string, userId: string) => request<MemberProfileDto>(`/v1/organizations/${orgId}/members/${userId}/profile`),
   setMemberRole: (orgId: string, userId: string, role: OrgRole) =>
     request(`/v1/organizations/${orgId}/members/${userId}`, json('PATCH', { role })),
   removeMember: (orgId: string, userId: string) => request(`/v1/organizations/${orgId}/members/${userId}`, json('DELETE')),
+  myUnavailabilities: (orgId: string) => request<UnavailabilityDto[]>(`/v1/organizations/${orgId}/me/unavailabilities`),
+  addUnavailability: (orgId: string, body: { startsOn: string; endsOn: string }) =>
+    request<UnavailabilityDto>(`/v1/organizations/${orgId}/me/unavailabilities`, json('POST', body, true)),
+  removeUnavailability: (id: string) => request(`/v1/me/unavailabilities/${id}`, json('DELETE')),
   leaveOrg: (orgId: string) => request(`/v1/organizations/${orgId}/leave`, json('POST')),
 
   invites: (orgId: string) => request<InviteDto[]>(`/v1/organizations/${orgId}/invites`),

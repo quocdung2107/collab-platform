@@ -1,6 +1,7 @@
 import type { NotificationDto, NotificationPageDto } from '@collab/shared';
 import { useState } from 'react';
 import { api } from '../lib/api';
+import { shortDay, timeLabel } from '../lib/datetime';
 import { useRealtime } from '../lib/realtime';
 import { go, type Route } from '../lib/route';
 import { Icon } from '../ui/icons';
@@ -8,7 +9,7 @@ import { Segmented, Skeleton } from '../ui/kit';
 import { useAction, useLoad } from '../lib/useLoad';
 import { RespondButtons } from './Respond';
 
-const ago = (iso: string) => new Date(iso).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const ago = (iso: string) => `${shortDay(iso)} ${timeLabel(iso)}`;
 
 const routeOf = (n: NotificationDto): Route | null => {
   if (!n.link) return null;
@@ -116,6 +117,11 @@ function Item({ n, onOpen, onChanged }: { n: NotificationDto; onOpen: (n: Notifi
         </span>
         {!n.readAt && <span className="unread-dot" aria-label="Chưa đọc" />}
       </button>
+      {n.actionState === 'pending' && n.available && n.pendingAssignments.length === 0 && (
+        <button className="button small" onClick={() => onOpen(n)}>
+          Xem
+        </button>
+      )}
       {n.actionState === 'pending' && n.pendingAssignments.map((a) => <RespondButtons key={a.id} assignmentId={a.id} status={a.status} onDone={onChanged} large />)}
     </li>
   );

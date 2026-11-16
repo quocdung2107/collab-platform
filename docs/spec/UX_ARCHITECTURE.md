@@ -105,7 +105,7 @@ Dời lịch `[MVP]`: nhập giờ mới → màn hình xác nhận liệt kê s
 
 - **Mục tiêu:** thành viên xem lịch tổ chức; người điều phối dựng buổi và thấy chỗ còn trống.
 - **Thành phần:** danh sách Event theo thời gian (mặc định) và chế độ tháng; bộ lọc: Tất cả / Của tôi / theo Nhóm; mỗi dòng: tên, giờ, vị trí của tôi (nếu có), chỉ báo đủ/thiếu người (điều phối). Nút Tạo buổi (điều phối): Từ mẫu · Sao chép buổi trước · Buổi trống.
-- **Bảng xếp lịch** (điều phối, trong Event): lưới Position × ô người; chọn người từ danh sách thành viên nhóm phụ trách trước, sau đó toàn tổ chức; cảnh báo: trùng giờ với Assignment đang hiệu lực khác, `[S]` ngày bận.
+- **Bảng xếp lịch** (điều phối, trong Event): lưới Position × ô người; chọn người từ danh sách thành viên nhóm phụ trách trước, sau đó toàn tổ chức; cảnh báo: trùng giờ với Assignment đang hiệu lực khác, ngày bận (AD-34; chỉ hiện khi xếp, không có lý do).
 - **Hành động chính:** mở Event; tạo Event; xếp người; Gửi yêu cầu (publish).
 - **Dữ liệu:** Event người xem được phép thấy; Assignment của người xem; đếm Assignment theo trạng thái cho từng Position.
 - **Trạng thái:** rỗng · chỉ có bản nháp · quá khứ (cuộn lên).

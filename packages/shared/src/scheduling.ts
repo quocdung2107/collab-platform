@@ -82,7 +82,7 @@ export interface CreatedEventDto {
 
 export interface CreatedAssignmentDto {
   assignment: AssignmentDto;
-  warnings: Array<{ code: 'overlapping_assignment'; eventId: string; title: string; startsAt: string }>;
+  warnings: Array<{ code: 'overlapping_assignment'; eventId: string; title: string; startsAt: string } | { code: 'member_busy'; startsOn: string; endsOn: string }>;
 }
 
 export interface TemplateDefinition {

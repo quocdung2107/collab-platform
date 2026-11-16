@@ -377,7 +377,7 @@ UNIQUE `(notification_id, device_token_id)`. Chỉ mục: `(status, not_before)`
 | Bảng | Nhãn | Mục đích | Ghi chú thiết kế |
 | --- | --- | --- | --- |
 | `scheduled_jobs` | `[S]` | Nhắc việc, leo thang, quá hạn, tóm tắt | `id`, `kind`, `run_at`, `object_type`, `object_id`, `payload`, `status`, `dedupe_key` UNIQUE |
-| `unavailabilities` | `[S]` | Ngày bận của thành viên | `id`, `org_id`, `user_id`, `starts_on`, `ends_on`, `reason?` (chỉ người quản lý thấy) |
+| `unavailabilities` | `[S]`, đã làm tối thiểu ở AD-34 (migration 0012) | Ngày bận của thành viên | `id`, `org_id`, `user_id`, `starts_on`, `ends_on`. **Bản dựng không có `reason`** (lệch có chủ ý so với đặc tả gốc) |
 | `event_items` | `[S]` | Dòng chương trình của Event | `id`, `org_id`, `event_id`, `sort`, `kind`, `title`, `duration_min?`, `notes?`, `external_refs : json`; thêm cột `events.plan_version : int` |
 | `integration_clients`, `access_grants` | `[EXT]` | Ứng dụng ngoài truy cập qua API (Koinonia) | Xem `KOINONIA_INTEGRATION.md` |
 | `conversation_members` | `[EXT]` | Hội thoại không anchor (DM, nhóm tự do) | Kèm `anchor_type = direct` |

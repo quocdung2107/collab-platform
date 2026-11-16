@@ -13,6 +13,8 @@ export type Route =
   | { name: 'group'; id: string }
   | { name: 'event'; id: string }
   | { name: 'task'; id: string }
+  /** Hồ sơ thành viên (UX §4.7): orgId + id = userId; hash `#member=<orgId>.<userId>`. */
+  | { name: 'member'; orgId: string; id: string }
   /** Hội thoại toàn màn hình (UX §4.2b); id = conversationId. */
   | { name: 'chat'; id: string }
   /** Tạo Event trong tổ chức id; copy = Event nguồn khi "sao chép buổi trước". */
@@ -43,6 +45,10 @@ export function parseRoute(hash: string): Route {
   if (v && k === 'event') return { name: 'event', id: v };
   if (v && k === 'task') return { name: 'task', id: v };
   if (v && k === 'chat') return { name: 'chat', id: v };
+  if (v && k === 'member') {
+    const j = v.indexOf('.');
+    if (j > 0 && j < v.length - 1) return { name: 'member', orgId: v.slice(0, j), id: v.slice(j + 1) };
+  }
   if (v && k === 'newevent') {
     const j = v.indexOf('&copy=');
     return j < 0 ? { name: 'newevent', id: v } : { name: 'newevent', id: v.slice(0, j), copy: v.slice(j + 6) };
@@ -59,6 +65,8 @@ export function href(r: Route): string {
       return `#newevent=${r.id}${r.copy ? `&copy=${r.copy}` : ''}`;
     case 'invite':
       return `#invite=${r.token}`;
+    case 'member':
+      return `#member=${r.orgId}.${r.id}`;
     case 'org':
     case 'group':
     case 'event':
@@ -93,6 +101,7 @@ export function tabOf(r: Route): Tab | null {
       return 'chats';
     case 'groups':
     case 'group':
+    case 'member':
       return 'groups';
     default:
       return null;
@@ -110,6 +119,7 @@ export function parentOf(r: Route): Route {
     case 'plan':
       return { name: 'calendar' };
     case 'group':
+    case 'member':
       return { name: 'groups' };
     case 'chat':
       return { name: 'chats' };
