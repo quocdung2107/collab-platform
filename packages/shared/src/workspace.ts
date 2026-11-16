@@ -35,6 +35,8 @@ export interface WorkspaceTaskDto {
 export interface ShortPositionDto {
   eventId: string;
   eventTitle: string;
+  /** Bản nháp chưa gửi cho ai: vẫn cần xếp người nhưng khác "cần thay gấp". */
+  eventStatus: 'draft' | 'published';
   startsAt: string;
   orgName: string;
   positionId: string;

@@ -73,6 +73,7 @@ export async function getWorkspace(db: Queryable, userId: string): Promise<Works
   const short = await db.query<{
     event_id: string;
     title: string;
+    event_status: 'draft' | 'published';
     starts_at: Date;
     org_name: string;
     position_id: string;
@@ -81,7 +82,7 @@ export async function getWorkspace(db: Queryable, userId: string): Promise<Works
     slots: number;
     filled: number;
   }>(
-    `select e.id as event_id, e.title, e.starts_at, o.name as org_name, p.id as position_id, p.name as position_name, g.name as group_name, p.slots,
+    `select e.id as event_id, e.title, e.status as event_status, e.starts_at, o.name as org_name, p.id as position_id, p.name as position_name, g.name as group_name, p.slots,
             (select count(*)::int from app.assignments x where x.position_id = p.id and x.status in ('draft', 'requested', 'accepted', 'reconfirm')) as filled
        from app.positions p
        join app.events e on e.id = p.event_id and e.status <> 'cancelled' and e.deleted_at is null and e.starts_at > now()
@@ -99,6 +100,7 @@ export async function getWorkspace(db: Queryable, userId: string): Promise<Works
   const shortPositions: ShortPositionDto[] = short.rows.map((r) => ({
     eventId: r.event_id,
     eventTitle: r.title,
+    eventStatus: r.event_status,
     startsAt: r.starts_at.toISOString(),
     orgName: r.org_name,
     positionId: r.position_id,

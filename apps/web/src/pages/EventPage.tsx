@@ -105,6 +105,23 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
     <>
       {isDraft && <Banner>Bản nháp, chưa gửi cho ai. Xếp người xong thì bấm Công bố.</Banner>}
       {cancelled && <Banner tone="danger">Buổi này đã huỷ. Mọi vị trí đã được huỷ và người được xếp đã được báo.</Banner>}
+      {mine.map(({ p, a }) => (
+        <section key={a.id} className="card mine-banner">
+          <h2>Vị trí của bạn</h2>
+          <div className="row spread">
+            <span className="grid">
+              <strong>{p.name}</strong>
+              <span className="hint">
+                Có mặt {timeLabel(addMinutes(e.startsAt, p.reportOffsetMin))}
+                {p.groupName ? ` · ${p.groupName}` : ''}
+              </span>
+            </span>
+            <span className={a.status === 'accepted' ? 'tag ok' : a.status === 'reconfirm' ? 'tag warn' : 'tag info'}>{assignmentStatusLabel[a.status]}</span>
+          </div>
+          <RespondButtons assignmentId={a.id} status={a.status} onDone={ev.reload} large />
+        </section>
+      ))}
+
       <section className="card hero">
         <h1>
           {e.title} {e.status !== 'published' && <span className={cancelled ? 'tag warn' : 'tag'}>{eventStatusLabel[e.status]}</span>}
@@ -163,23 +180,6 @@ export function EventPage({ eventId, meId }: { eventId: string; meId: string }) 
         {editing && e.canEdit && e.status === 'published' && <ChangeEvent e={e} onDone={(msg) => (setEditing(false), setNotice(msg), ev.reload())} />}
         {e.canEdit && editing && <Owners e={e} members={members.data ?? []} onChanged={ev.reload} />}
       </section>
-
-      {mine.map(({ p, a }) => (
-        <section key={a.id} className="card mine-banner">
-          <h2>Vị trí của bạn</h2>
-          <div className="row spread">
-            <span className="grid">
-              <strong>{p.name}</strong>
-              <span className="hint">
-                Có mặt {timeLabel(addMinutes(e.startsAt, p.reportOffsetMin))}
-                {p.groupName ? ` · ${p.groupName}` : ''}
-              </span>
-            </span>
-            <span className={a.status === 'accepted' ? 'tag ok' : a.status === 'reconfirm' ? 'tag warn' : 'tag info'}>{assignmentStatusLabel[a.status]}</span>
-          </div>
-          <RespondButtons assignmentId={a.id} status={a.status} onDone={ev.reload} large />
-        </section>
-      ))}
 
       {e.conversationId && <ChatLink conversationId={e.conversationId} label="Thảo luận về buổi này" />}
       {isDraft && <p className="hint center">Thảo luận mở khi buổi được công bố.</p>}
@@ -373,7 +373,7 @@ export function Follow({ eventId, type = 'event', label = 'Thông báo về bu�
         disabled={act.busy}
         onChange={(x) => void act.run(() => api.setSubscription(type, eventId, (x.target.value || null) as 'follow' | 'mute' | null), sub.reload)}
       >
-        <option value="">Mặc định</option>
+        <option value="">Bình thường</option>
         <option value="follow">Theo dõi mọi cập nhật</option>
         <option value="mute">Tắt tiếng (vẫn nhận việc cần bạn)</option>
       </select>

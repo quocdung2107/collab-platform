@@ -86,7 +86,7 @@ describe.skipIf(!TEST_DB_URL)('F12: My Workspace', () => {
   it('F12-T4: người điều phối thấy vị trí thiếu người; biến mất khi đủ slots', async () => {
     const e = await event('Hội nghị', 6, groups[0]!, [M1], 2);
     let w = await ws(LD);
-    expect(w.coordinate.shortPositions).toEqual([expect.objectContaining({ eventId: e.ev.id, positionName: 'Vị trí Hội nghị', slots: 2, filled: 1 })]);
+    expect(w.coordinate.shortPositions).toEqual([expect.objectContaining({ eventId: e.ev.id, positionName: 'Vị trí Hội nghị', slots: 2, filled: 1, eventStatus: 'published' })]);
     await LD.call('POST', `/v1/positions/${e.pos.id}/assignments`, { userId: NEW.id });
     w = await ws(LD);
     expect(w.coordinate.shortPositions.some((p: { eventId: string }) => p.eventId === e.ev.id)).toBe(false);

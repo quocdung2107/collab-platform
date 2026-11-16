@@ -7,6 +7,7 @@ import { DateTile, Skeleton } from '../ui/kit';
 import { useRealtime } from '../lib/realtime';
 import { go, href } from '../lib/route';
 import { useLoad } from '../lib/useLoad';
+import { groupShort } from '../lib/workspaceGroups';
 import { RespondButtons } from './Respond';
 
 type Item = WorkspaceAssignmentDto | WorkspaceTaskDto;
@@ -85,22 +86,19 @@ export function Today({ meId, renderTask }: { meId: string; renderTask?: (t: Wor
         <section className="card">
           <h2>Cần xử lý</h2>
           <ul className="list">
-            {w.coordinate.shortPositions.map((p) => (
-              <li key={p.positionId}>
-                <a className="cell-link" href={href({ name: 'event', id: p.eventId })}>
+            {groupShort(w.coordinate.shortPositions).map((g) => (
+              <li key={g.eventId}>
+                <a className="cell-link" href={href({ name: 'event', id: g.eventId })}>
                   <span className="leading-icon kind-warn">
                     <Icon name="alert" size={18} />
                   </span>
                   <span className="grid">
-                    <strong>{p.eventTitle}</strong>
-                    <span className="hint">
-                      {p.positionName}
-                      {p.groupName ? ` · ${p.groupName}` : ''} · {shortDay(p.startsAt)}
-                    </span>
+                    <strong>
+                      {g.eventTitle} · {shortDay(g.startsAt)}
+                    </strong>
+                    <span className="hint">{g.positions.map((p) => `${p.name} thiếu ${p.missing}`).join(' · ')}</span>
                   </span>
-                  <span className="tag warn">
-                    thiếu {p.slots - p.filled}/{p.slots}
-                  </span>
+                  <span className={g.draft ? 'tag' : 'tag warn'}>{g.draft ? 'Bản nháp' : `thiếu ${g.total}`}</span>
                 </a>
               </li>
             ))}
