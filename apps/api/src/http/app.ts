@@ -4,6 +4,7 @@ import type { Db } from '../db/pool.js';
 import { groupRoutes } from '../modules/groups/routes.js';
 import { messagingRoutes } from '../modules/messaging/routes.js';
 import { notificationRoutes } from '../modules/notifications/routes.js';
+import { availabilityRoutes } from '../modules/availability/routes.js';
 import { workspaceRoutes } from '../modules/workspace/routes.js';
 import { schedulingRoutes } from '../modules/scheduling/routes.js';
 import { identityRoutes } from '../modules/identity/routes.js';
@@ -90,6 +91,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   await app.register(schedulingRoutes);
   await app.register(notificationRoutes);
   await app.register(workspaceRoutes);
+  await app.register(availabilityRoutes);
   await app.register(taskRoutes);
   await app.register(linkRoutes);
   await app.register(fileRoutes);

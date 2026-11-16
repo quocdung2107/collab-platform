@@ -122,4 +122,19 @@ describe.skipIf(!TEST_DB_URL)('F12: My Workspace', () => {
     expect((await stranger.call('GET', url)).status).toBe(404);
     expect((await AD.call('GET', `/v1/organizations/${orgId}/members/${stranger.id}/profile`)).status).toBe(404);
   });
+
+  it('AD-34 ngày bận: chỉ chủ nhân đọc được; xếp vào buổi trùng ngày → cảnh báo member_busy, không chặn', async () => {
+    const ev = await event('Buổi bận', 9, groups[0]!, []);
+    const day = inDays(9).slice(0, 10);
+    const mk = await M1.call('POST', `/v1/organizations/${orgId}/me/unavailabilities`, { startsOn: day, endsOn: day });
+    expect(mk.status).toBe(201);
+    expect((await M1.call('GET', `/v1/organizations/${orgId}/me/unavailabilities`)).body).toEqual([expect.objectContaining({ startsOn: day, endsOn: day })]);
+    expect((await AD.call('GET', `/v1/organizations/${orgId}/me/unavailabilities`)).body).toEqual([]);
+    expect((await M1.call('POST', `/v1/organizations/${orgId}/me/unavailabilities`, { startsOn: day, endsOn: '2000-01-01' })).status).toBe(400);
+    const r = await AD.call('POST', `/v1/positions/${ev.pos.id}/assignments`, { userId: M1.id });
+    expect(r.status).toBe(201);
+    expect(r.body.warnings).toEqual([{ code: 'member_busy', startsOn: day, endsOn: day }]);
+    expect((await AD.call('DELETE', `/v1/me/unavailabilities/${mk.body.id}`)).status).toBe(404);
+    expect((await M1.call('DELETE', `/v1/me/unavailabilities/${mk.body.id}`)).status).toBe(200);
+  });
 });

@@ -211,11 +211,23 @@ export async function createAssignment(
         and e.status = 'published' and e.starts_at < $5 and e.ends_at > $4`,
     [userId, p.event_id, ACTIVE, ev.row.starts_at, ev.row.ends_at],
   );
+  // Ngày bận người này đã tự đánh dấu (AD-34): so theo ngày địa phương của tổ chức; chỉ trả khoảng ngày, không có lý do.
+  const busy = await ctx.tx.query<{ starts_on: string; ends_on: string }>(
+    `select to_char(u.starts_on, 'YYYY-MM-DD') as starts_on, to_char(u.ends_on, 'YYYY-MM-DD') as ends_on
+       from app.unavailabilities u join app.organizations o on o.id = u.org_id
+      where u.user_id = $1 and u.org_id = $2
+        and u.starts_on <= ($4::timestamptz at time zone o.timezone)::date and u.ends_on >= ($3::timestamptz at time zone o.timezone)::date
+      order by u.starts_on limit 1`,
+    [userId, p.org_id, ev.row.starts_at, ev.row.ends_at],
+  );
   const detail = await detailOf(ctx, p.event_id);
   const dto = detail.positions.flatMap((x) => x.assignments).find((a) => a.id === assignmentId)!;
   return {
     assignment: dto,
-    warnings: overlap.rows.map((o) => ({ code: 'overlapping_assignment' as const, eventId: o.event_id, title: o.title, startsAt: o.starts_at.toISOString() })),
+    warnings: [
+      ...overlap.rows.map((o) => ({ code: 'overlapping_assignment' as const, eventId: o.event_id, title: o.title, startsAt: o.starts_at.toISOString() })),
+      ...busy.rows.map((b) => ({ code: 'member_busy' as const, startsOn: b.starts_on, endsOn: b.ends_on })),
+    ],
   };
 }
 

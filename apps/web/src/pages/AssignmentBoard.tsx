@@ -19,6 +19,8 @@ const OCCUPYING = ['draft', 'requested', 'accepted', 'reconfirm'];
 const tone = (s: AssignmentDto['status']) =>
   s === 'accepted' ? 'tag ok' : s === 'declined' || s === 'reconfirm' ? 'tag warn' : s === 'requested' ? 'tag info' : 'tag';
 
+const fmtDay = (d: string) => d.split('-').reverse().slice(0, 2).join('/');
+
 export function AssignmentBoard({
   e,
   meId,
@@ -72,8 +74,12 @@ export function AssignmentBoard({
       void act.run(
         () => api.assign(p.id, who),
         (r) => {
-          const w = r.warnings[0];
-          onNotice(w ? `Lưu ý: ${r.assignment.displayName} đã được xếp vào "${w.title}" trùng giờ.` : null);
+          const notes = r.warnings.map((w) =>
+            w.code === 'member_busy'
+              ? `${r.assignment.displayName} đã đánh dấu bận ${w.startsOn === w.endsOn ? `ngày ${fmtDay(w.startsOn)}` : `từ ${fmtDay(w.startsOn)} đến ${fmtDay(w.endsOn)}`}.`
+              : `${r.assignment.displayName} đã được xếp vào "${w.title}" trùng giờ.`,
+          );
+          onNotice(notes.length ? `Lưu ý: ${notes.join(' ')}` : null);
           onChanged();
         },
       );

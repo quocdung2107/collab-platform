@@ -66,3 +66,11 @@ export interface WorkspaceDto {
   /** Tổ chức đầu tiên của người dùng để trạng thái rỗng dẫn tới Lịch (F12-T5). */
   firstOrgId: string | null;
 }
+
+/** Ngày bận (AD-34): chỉ chủ sở hữu đọc được; không có lý do. */
+export interface UnavailabilityDto {
+  id: string;
+  orgId: string;
+  startsOn: string;
+  endsOn: string;
+}

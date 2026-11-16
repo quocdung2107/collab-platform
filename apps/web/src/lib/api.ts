@@ -13,6 +13,7 @@ import type {
   ConversationSummaryDto,
   MemberDto,
   MemberProfileDto,
+  UnavailabilityDto,
   OrganizationDto,
   OrgRole,
   CreatedAssignmentDto,
@@ -99,6 +100,10 @@ export const api = {
   setMemberRole: (orgId: string, userId: string, role: OrgRole) =>
     request(`/v1/organizations/${orgId}/members/${userId}`, json('PATCH', { role })),
   removeMember: (orgId: string, userId: string) => request(`/v1/organizations/${orgId}/members/${userId}`, json('DELETE')),
+  myUnavailabilities: (orgId: string) => request<UnavailabilityDto[]>(`/v1/organizations/${orgId}/me/unavailabilities`),
+  addUnavailability: (orgId: string, body: { startsOn: string; endsOn: string }) =>
+    request<UnavailabilityDto>(`/v1/organizations/${orgId}/me/unavailabilities`, json('POST', body, true)),
+  removeUnavailability: (id: string) => request(`/v1/me/unavailabilities/${id}`, json('DELETE')),
   leaveOrg: (orgId: string) => request(`/v1/organizations/${orgId}/leave`, json('POST')),
 
   invites: (orgId: string) => request<InviteDto[]>(`/v1/organizations/${orgId}/invites`),
