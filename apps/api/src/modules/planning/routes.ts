@@ -21,6 +21,7 @@ import {
   updatePeriod,
   updateSeries,
 } from './plan.js';
+import { importRoster, previewRoster } from './roster.js';
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD');
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:MM');
@@ -98,6 +99,17 @@ const seriesPatch = z.object({ expectedVersion: version, ...changeFields });
 const previewBody = z.object(changeFields);
 const archiveBody = z.object({ events: z.enum(['keep', 'all']).default('keep'), reason: z.string().trim().max(500).optional() });
 
+const rosterBody = z
+  .object({
+    seriesId: z.uuid(),
+    columns: z.array(z.object({ date: day, time: time.optional() })).min(1, 'File chưa có cột ngày').max(62, 'Tối đa 62 cột'),
+    rows: z
+      .array(z.object({ name: z.string().trim().min(1, 'Thiếu tên vị trí').max(120), cells: z.array(z.array(z.uuid()).max(20, 'Tối đa 20 người một ô')) }))
+      .min(1, 'File chưa có dòng vị trí')
+      .max(100, 'Tối đa 100 dòng'),
+  })
+  .refine((b) => b.rows.every((r) => r.cells.length === b.columns.length), { message: 'Số ô mỗi dòng phải bằng số cột', path: ['rows'] });
+
 type P = { orgId?: string; periodId?: string; seriesId?: string; variantId?: string };
 
 export async function planningRoutes(app: FastifyInstance) {
@@ -110,6 +122,11 @@ export async function planningRoutes(app: FastifyInstance) {
   });
   app.post<{ Params: P }>('/v1/organizations/:orgId/plan/materialize', (req, reply) =>
     runCommand(deps, req, reply, async (ctx) => ({ body: await materialize(ctx, org(req), parse(materializeBody, req.body)) })),
+  );
+  // Nhập bảng phân công từ Excel (IN-62): xem trước (chỉ đọc) và ghi.
+  app.post<{ Params: P }>('/v1/organizations/:orgId/roster/preview', (req) => previewRoster(app.db, req.currentUser().id, org(req), parse(rosterBody, req.body)));
+  app.post<{ Params: P }>('/v1/organizations/:orgId/roster/import', (req, reply) =>
+    runCommand(deps, req, reply, async (ctx) => ({ body: await importRoster(ctx, org(req), parse(rosterBody, req.body)) })),
   );
   app.get<{ Params: P }>('/v1/organizations/:orgId/plan/month-proposals', (req) =>
     monthProposals(app.db, req.currentUser().id, org(req), parse(monthQuery, req.query).month),

@@ -1,4 +1,7 @@
 import type {
+  RosterImportInput,
+  RosterImportResultDto,
+  RosterPreviewDto,
   AcceptInviteResult,
   ApiErrorBody,
   CreatedInviteDto,
@@ -206,6 +209,9 @@ export const api = {
   createSeries: (orgId: string, body: SeriesBody) => request<EventSeriesDto>(`/v1/organizations/${orgId}/series`, json('POST', body, true)),
   seriesFromEvents: (orgId: string, body: { items: Array<{ eventId: string; rule?: SeriesRule }>; interval?: number; untilOn: string | null }) =>
     request<EventSeriesDto[]>(`/v1/organizations/${orgId}/series/from-events`, json('POST', body, true)),
+  // Nhập bảng phân công từ Excel (IN-62).
+  rosterPreview: (orgId: string, body: RosterImportInput) => request<RosterPreviewDto>(`/v1/organizations/${orgId}/roster/preview`, json('POST', body)),
+  rosterImport: (orgId: string, body: RosterImportInput) => request<RosterImportResultDto>(`/v1/organizations/${orgId}/roster/import`, json('POST', body, true)),
   monthProposals: (orgId: string, month: string) => request<MonthProposalDto[]>(`/v1/organizations/${orgId}/plan/month-proposals?month=${month}`),
   seriesFromMonth: (orgId: string, body: { items: Array<Pick<MonthProposalDto, 'eventId' | 'rule' | 'variantOfEventId'> & { kind: 'weekly' | 'monthly' | 'variant' }>; untilOn: string | null }) =>
     request<{ series: EventSeriesDto[]; variants: SeriesVariantDto[] }>(`/v1/organizations/${orgId}/series/from-month`, json('POST', body, true)),

@@ -63,7 +63,7 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
 }
 
 /** Bảng trượt có nội dung tự do (cây tổng quan, bảng nhịp…); đóng bằng nền mờ, Escape hoặc khi đổi màn hình. */
-export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Sheet({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -73,7 +73,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
   return (
     <div className="sheet-layer">
       <div className="sheet-dim" onClick={onClose} />
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
+      <div className={wide ? 'sheet wide' : 'sheet'} role="dialog" aria-modal="true" aria-label={title}>
         <span className="sheet-grab" aria-hidden="true" />
         <h2 className="sheet-title">{title}</h2>
         {children}
