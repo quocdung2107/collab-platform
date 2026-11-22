@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../lib/api';
 import { useRealtime } from '../lib/realtime';
 import { href } from '../lib/route';
-import { useAction, useLoad } from '../lib/useLoad';
+import { useAction, useLoad } from '@collab/client';
 
 const UUID = /(event|task)=([0-9a-f-]{36})/i;
 

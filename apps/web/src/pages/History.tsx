@@ -2,7 +2,7 @@ import type { HistoryEntryDto } from '@collab/shared';
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { useRealtime } from '../lib/realtime';
-import { useLoad } from '../lib/useLoad';
+import { useLoad } from '@collab/client';
 
 const at = (iso: string) => new Date(iso).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 

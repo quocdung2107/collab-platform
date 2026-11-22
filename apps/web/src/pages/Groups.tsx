@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../lib/api';
 import { useRealtime } from '../lib/realtime';
 import { href } from '../lib/route';
-import { useAction, useLoad } from '../lib/useLoad';
+import { useAction, useLoad } from '@collab/client';
 
 /** Tab Nhóm (UX §2): danh sách nhóm của tổ chức đang xem; quản trị tạo nhóm tại đây. */
 export function Groups({ orgId, meId, isAdmin }: { orgId: string; meId: string; isAdmin: boolean }) {

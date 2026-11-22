@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type NotificationPrefs } from '../lib/api';
-import { useAction, useLoad } from '../lib/useLoad';
+import { useAction, useLoad } from '@collab/client';
 import { Skeleton, Switch } from '../ui/kit';
 import { pushState, turnOffPush, turnOnPush, type PushState } from '../lib/webpush';
 

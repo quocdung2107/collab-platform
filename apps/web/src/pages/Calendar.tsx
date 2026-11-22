@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
 import type { GroupSummaryDto } from '@collab/shared';
-import { shortDay, timeLabel } from '../lib/datetime';
-import { cellKey, fold, monthCells, monthRange } from '../lib/monthGrid';
+import { shortDay, timeLabel } from '@collab/client';
+import { cellKey, fold, monthCells, monthRange } from '@collab/client';
 import { Icon } from '../ui/icons';
 import { Segmented, Skeleton } from '../ui/kit';
 import { useRealtime } from '../lib/realtime';
 import { href } from '../lib/route';
-import { useLoad } from '../lib/useLoad';
+import { useLoad } from '@collab/client';
 import { assignmentStatusLabel, eventStatusLabel } from './EventLabels';
 
 const WEEK = 7 * 24 * 3600_000;

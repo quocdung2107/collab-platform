@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { api } from '../lib/api';
 import { setCurrentOrg } from '../lib/currentOrg';
 import { go } from '../lib/route';
-import { useAction } from '../lib/useLoad';
+import { useAction } from '@collab/client';
 import { Today } from './Today';
 
 const ROLE: Record<string, string> = { owner: 'Chủ sở hữu', admin: 'Quản trị', member: 'Thành viên' };

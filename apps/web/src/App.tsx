@@ -7,7 +7,7 @@ import { useOnline } from './lib/useOnline';
 import { useRealtime } from './lib/realtime';
 import { setCurrentOrg, useCurrentOrg } from './lib/currentOrg';
 import { go, href, isTabRoot, pendingInvite, tabOf, useRoute, type Route } from './lib/route';
-import { useLoad } from './lib/useLoad';
+import { useLoad } from '@collab/client';
 import { signInWithGoogle, signOut, supabase, supabaseConfigured } from './lib/supabase';
 import { CalendarTab } from './pages/Calendar';
 import { Planner } from './pages/Planner';

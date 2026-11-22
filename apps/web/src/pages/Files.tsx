@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api, errorText } from '../lib/api';
 import { openAttachment, sizeLabel, uploadFile } from '../lib/files';
 import { useRealtime } from '../lib/realtime';
-import { useAction, useLoad } from '../lib/useLoad';
+import { useAction, useLoad } from '@collab/client';
 
 /** Tệp của buổi / việc (PERMISSION_MODEL §4.7): ai xem được đối tượng thì mở được tệp; người có quyền thêm thì tải lên. */
 export function Files({ owner, id, orgId, topic, canAdd, meId }: { owner: 'events' | 'tasks'; id: string; orgId: string; topic: string; canAdd: boolean; meId: string }) {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { errorText } from './api';
+import { errorText } from './api.js';
 
 /** Tải dữ liệu qua API; reload() để tải lại sau lệnh hoặc tín hiệu realtime. */
 export function useLoad<T>(load: () => Promise<T>, deps: unknown[]) {
