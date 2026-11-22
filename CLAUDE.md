@@ -11,7 +11,7 @@ Chủ sản phẩm: Dung. Ngôn ngữ làm việc: tiếng Việt. Mã nguồn: 
 Chat và Workspace ngang hàng; liên kết hai chiều; church-first với lõi độc lập miền; Assignment tách Task; Audience khác Subscription; ActivityEvent là nguồn lịch sử/sự kiện; Context Link truy xuất hai chiều; không AI trong MVP; Koinonia và Nền tảng tách biệt, tích hợp qua hợp đồng API.
 
 ## Ngăn xếp đã chốt
-Responsive Web/PWA; Supabase Auth + Google OAuth; Supabase/PostgreSQL; React + TypeScript; Node.js + TypeScript Modular Monolith; Realtime, Storage, RLS. Logic và phân quyền ở Backend (`can()`), RLS là lớp thứ hai. PostgreSQL chuẩn, migration có kiểm soát. Koinonia (Electron/React/TS/Python/SQLite) chỉ nói chuyện qua API, không chung cơ sở dữ liệu.
+Responsive Web/PWA + app iOS/Android React Native/Expo trong cùng monorepo (AD-35, logic dùng chung ở `packages/client`); Supabase Auth + Google OAuth; Supabase/PostgreSQL; React + TypeScript; Node.js + TypeScript Modular Monolith; Realtime, Storage, RLS. Logic và phân quyền ở Backend (`can()`), RLS là lớp thứ hai. PostgreSQL chuẩn, migration có kiểm soát. Koinonia (Electron/React/TS/Python/SQLite) chỉ nói chuyện qua API, không chung cơ sở dữ liệu.
 
 ## Việc đầu tiên khi bắt đầu xây dựng
 Thử nghiệm OD-17 (push iPhone), OD-18 (đăng nhập Google trong trình duyệt nhúng Zalo/Messenger), OD-19 (realtime + gỡ thành viên). Bật khoá ký JWT bất đối xứng khi tạo dự án Supabase.

@@ -12,9 +12,9 @@ import {
 } from '@collab/shared';
 import { useState } from 'react';
 import { api, type SeriesChange } from '../lib/api';
-import { timeLabel } from '../lib/datetime';
-import { WEEKDAYS, dm, type Ev } from '../lib/planning';
-import { useAction, useLoad } from '../lib/useLoad';
+import { timeLabel } from '@collab/client';
+import { WEEKDAYS, dm, type Ev } from '@collab/client';
+import { useAction, useLoad } from '@collab/client';
 import { confirmThen, dialogs } from '../ui/dialogs';
 import { Sheet } from '../ui/kit';
 

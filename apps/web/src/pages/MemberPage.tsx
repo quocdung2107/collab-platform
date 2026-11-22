@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
-import { shortDay, timeLabel } from '../lib/datetime';
+import { shortDay, timeLabel } from '@collab/client';
 import { href } from '../lib/route';
-import { useAction, useLoad } from '../lib/useLoad';
+import { useAction, useLoad } from '@collab/client';
 import { confirmThen } from '../ui/dialogs';
 import { Icon } from '../ui/icons';
 import { Skeleton } from '../ui/kit';

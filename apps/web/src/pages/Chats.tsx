@@ -1,11 +1,11 @@
 import type { ConversationSummaryDto } from '@collab/shared';
 import { api } from '../lib/api';
-import { shortDay, timeLabel } from '../lib/datetime';
+import { shortDay, timeLabel } from '@collab/client';
 import { useRealtime } from '../lib/realtime';
 import { href } from '../lib/route';
 import { Icon } from '../ui/icons';
 import { Skeleton } from '../ui/kit';
-import { useLoad } from '../lib/useLoad';
+import { useLoad } from '@collab/client';
 
 const KIND: Record<ConversationSummaryDto['anchor']['type'], string> = { group: 'Nhóm', event: 'Buổi', task: 'Việc' };
 

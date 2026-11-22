@@ -8,6 +8,8 @@ Nền tảng giao tiếp lấy công việc làm trung tâm cho cộng đồng h
 | --- | --- |
 | `apps/api` | Backend Node.js + TypeScript (Fastify), modular monolith. `src/modules/<module>`; `can()` ở `modules/access` |
 | `apps/web` | React + TypeScript, PWA (Vite) |
+| `apps/mobile` | App iOS + Android, React Native/Expo SDK 58 (AD-35). Hướng dẫn: [`apps/mobile/README.md`](apps/mobile/README.md) |
+| `packages/client` | Lớp máy khách dùng chung web + app: gọi API, hook tải dữ liệu, Realtime, logic hiển thị |
 | `packages/shared` | Kiểu và mã lỗi dùng chung giữa API và web |
 | `db/migrations` | Migration PostgreSQL chuẩn, chạy ở mọi môi trường |
 | `db/supabase` | Đối tượng đặc thù Supabase (AD-29), chỉ chạy với `--supabase` |

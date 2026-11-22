@@ -1,6 +1,6 @@
 import type { AssignmentStatus } from '@collab/shared';
 import { api } from '../lib/api';
-import { useAction } from '../lib/useLoad';
+import { useAction } from '@collab/client';
 import { dialogs } from '../ui/dialogs';
 
 /**

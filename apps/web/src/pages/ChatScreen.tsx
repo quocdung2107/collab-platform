@@ -2,7 +2,7 @@ import type { ConversationSummaryDto } from '@collab/shared';
 import { useState } from 'react';
 import { api } from '../lib/api';
 import { href, type Route } from '../lib/route';
-import { useLoad } from '../lib/useLoad';
+import { useLoad } from '@collab/client';
 import { Icon } from '../ui/icons';
 import { useSetTitle } from '../ui/title';
 import { ChatPanel } from './ChatPanel';

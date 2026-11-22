@@ -30,3 +30,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      # App di động (AD-35): đóng gói JS cho iOS + Android để bắt lỗi import/Metro (không cần tài khoản Expo).
+      - run: pnpm --filter @collab/mobile exec expo export --platform android --platform ios --output-dir /tmp/expo-dist
+        env:
+          EXPO_OFFLINE: '1'
+          CI: '1'

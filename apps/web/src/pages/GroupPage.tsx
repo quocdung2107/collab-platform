@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { api } from '../lib/api';
 import { useRealtime } from '../lib/realtime';
 import { go, href } from '../lib/route';
-import { useAction, useLoad } from '../lib/useLoad';
+import { useAction, useLoad } from '@collab/client';
 import { confirmThen } from '../ui/dialogs';
 import { Skeleton } from '../ui/kit';
 import { useSetTitle } from '../ui/title';

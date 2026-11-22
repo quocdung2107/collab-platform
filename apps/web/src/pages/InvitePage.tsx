@@ -1,7 +1,7 @@
 import { api } from '../lib/api';
 import { setCurrentOrg } from '../lib/currentOrg';
 import { go } from '../lib/route';
-import { useAction, useLoad } from '../lib/useLoad';
+import { useAction, useLoad } from '@collab/client';
 
 const STATUS = { expired: 'Liên kết mời đã hết hạn.', revoked: 'Liên kết mời đã bị thu hồi.', used_up: 'Liên kết mời đã hết lượt dùng.' };
 
