@@ -36,6 +36,7 @@ import { href } from '../lib/route';
 import { useAction, useLoad } from '../lib/useLoad';
 import { Icon } from '../ui/icons';
 import { Banner, Segmented, Sheet, Skeleton, useMedia } from '../ui/kit';
+import { RosterImportSheet } from './RosterImport';
 import { NewSeriesSheet, OccurrenceSheet, PeriodSheet, RepeatMonthSheet, RepeatWeekSheet, SeriesSheet, ymd } from './PlannerSheets';
 
 /**
@@ -67,7 +68,7 @@ const write = (k: string, v: string) => {
 };
 
 type SheetState =
-  | { kind: 'tree' | 'series' | 'add' | 'newSeries' | 'repeatWeek' | 'repeatMonth' }
+  | { kind: 'tree' | 'series' | 'add' | 'newSeries' | 'repeatWeek' | 'repeatMonth' | 'import' }
   | { kind: 'occ'; item: Ev }
   | { kind: 'editSeries'; series: EventSeriesDto }
   | { kind: 'period'; period?: PlanPeriodDto };
@@ -185,6 +186,11 @@ export function Planner({ orgId, meId }: { orgId: string; meId: string }) {
                 Lặp tháng này…
               </button>
             )}
+            {zoom === 'month' && (
+              <button className="button small" onClick={() => setSheet({ kind: 'import' })}>
+                Nhập từ Excel…
+              </button>
+            )}
             <button className="button small" onClick={() => setSheet({ kind: 'add' })}>
               + Thêm
             </button>
@@ -238,6 +244,9 @@ export function Planner({ orgId, meId }: { orgId: string; meId: string }) {
             <button className="button" onClick={() => (pick('month', zoom === 'month' ? anchor : new Date()), setSheet({ kind: 'repeatMonth' }))}>
               Lặp một tháng có sẵn…
             </button>
+            <button className="button" onClick={() => (pick('month', zoom === 'month' ? anchor : new Date()), setSheet({ kind: 'import' }))}>
+              Nhập bảng phân công từ Excel…
+            </button>
             <button className="button" onClick={() => setSheet({ kind: 'period' })}>
               Giai đoạn hoặc ngày đặc biệt
             </button>
@@ -247,6 +256,9 @@ export function Planner({ orgId, meId }: { orgId: string; meId: string }) {
       {sheet?.kind === 'newSeries' && <NewSeriesSheet orgId={orgId} defaultStart={period.start < now ? now : period.start} yearEnd={yearEnd} onDone={done} onClose={close} />}
       {sheet?.kind === 'repeatWeek' && <RepeatWeekSheet orgId={orgId} events={all.filter((e) => startsIn(e, periodOf('week', anchor)))} yearEnd={yearEnd} onDone={done} onClose={close} />}
       {sheet?.kind === 'repeatMonth' && <RepeatMonthSheet orgId={orgId} month={periodOf('month', anchor).start} yearEnd={yearEnd} onDone={done} onClose={close} />}
+      {sheet?.kind === 'import' && (
+        <RosterImportSheet orgId={orgId} month={periodOf('month', anchor).start} series={plan.data?.series ?? []} occurrences={plan.data?.occurrences ?? []} onDone={done} onClose={close} />
+      )}
       {sheet?.kind === 'period' && <PeriodSheet orgId={orgId} period={sheet.period} defaultStart={period.start} onDone={done} onClose={close} />}
       {sheet?.kind === 'occ' && (
         <OccurrenceSheet

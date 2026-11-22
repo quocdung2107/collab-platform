@@ -85,21 +85,21 @@ interface VariantRow {
 }
 const variantDto = (v: VariantRow): SeriesVariantDto => ({ id: v.id, selector: v.selector, action: v.action, createdAt: v.created_at.toISOString() });
 
-async function orgTimezone(db: Queryable, orgId: string) {
+export async function orgTimezone(db: Queryable, orgId: string) {
   return (await db.query<{ timezone: string }>(`select timezone from app.organizations where id = $1`, [orgId])).rows[0]!.timezone;
 }
 
 /** Người lập lịch: quản trị hoặc trưởng một nhóm (org.plan.manage). */
-async function planner(db: Queryable, userId: string, orgId: string) {
+export async function planner(db: Queryable, userId: string, orgId: string) {
   const { actor } = await viewOrg(db, userId, orgId);
   assertAllowed(can(actor, 'org.plan.manage', { type: 'organization', id: orgId }));
   return actor;
 }
 
-const manages = (actor: ActorContext, s: Pick<SeriesRow, 'org_id' | 'definition'>) =>
+export const manages = (actor: ActorContext, s: Pick<SeriesRow, 'org_id' | 'definition'>) =>
   can(actor, 'event.create', { type: 'event_draft', orgId: s.org_id, groupIds: s.definition.groupIds }).allowed;
 
-async function loadSeries(db: Queryable, orgId: string, ids?: string[]) {
+export async function loadSeries(db: Queryable, orgId: string, ids?: string[]) {
   const s = await db.query<SeriesRow>(
     `select ${SERIES_COLS} from app.event_series where org_id = $1 and archived_at is null and ($2::uuid[] is null or id = any($2::uuid[])) order by created_at`,
     [orgId, ids ?? null],
@@ -123,7 +123,7 @@ async function seriesForEdit(ctx: CommandCtx, seriesId: string, expectedVersion?
   return { row, actor };
 }
 
-async function loadPeriods(db: Queryable, orgId: string, from: string, to: string) {
+export async function loadPeriods(db: Queryable, orgId: string, from: string, to: string) {
   const r = await db.query<PeriodRow>(
     `select ${PERIOD_COLS} from app.plan_periods where org_id = $1 and archived_at is null and starts_on <= $3 and ends_on >= $2 order by starts_on, name`,
     [orgId, from, to],
@@ -146,7 +146,7 @@ interface MatRow {
 }
 
 /** Tính các buổi của nhịp trong [from, to] (ngày địa phương): dự kiến, bỏ qua, đã tạo; kèm chỗ trùng. */
-async function computeOccurrences(
+export async function computeOccurrences(
   db: Queryable,
   orgId: string,
   tz: string,
@@ -212,7 +212,7 @@ async function computeOccurrences(
   return out;
 }
 
-function checkRange(from: string, to: string) {
+export function checkRange(from: string, to: string) {
   if (from > to) throw new AppError('validation_failed', 'Khoảng ngày không hợp lệ', { fields: { to: 'before_from' } });
   const days = (Date.parse(to) - Date.parse(from)) / 86_400_000;
   if (days > MAX_RANGE_DAYS) throw new AppError('validation_failed', `Khoảng tối đa ${MAX_RANGE_DAYS} ngày`, { fields: { to: 'too_long' } });
